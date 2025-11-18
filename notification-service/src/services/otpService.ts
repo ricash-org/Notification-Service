@@ -8,33 +8,10 @@ export class OtpService {
   private notificationService = new NotificationService();
 
   private generateCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // 6 chiffres
+    return Math.floor(1000 + Math.random() * 9000).toString(); // 4chiffres
   }
 
   private expirationDelay = 5 * 60 * 1000; // 5 minutes
-
-  // async createOtp(utilisateurId: string, canalNotification: "EMAIL" | "TELEPHONE") {
-  //   const code = this.generateCode();
-  //   const expiration = new Date(Date.now() + this.expirationDelay);
-
-  //   const otp = this.otpRepo.create({ utilisateurId, code, canalNotification, expiration });
-  //   await this.otpRepo.save(otp);
-
-  //   //  Envoi automatique via NotificationService
-  //   const notifType =
-  //     canalNotification === "EMAIL"
-  //       ? TypeNotification.VERIFICATION_EMAIL
-  //       : TypeNotification.VERIFICATION_TELEPHONE;
-
-  //   await this.notificationService.envoyerNotification({
-  //     utilisateurId,
-  //     typeNotification: notifType,
-  //     canal: canalNotification === "EMAIL" ? CanalNotification.EMAIL : CanalNotification.SMS,
-  //     context: { code },
-  //   });
-
-  //   return { success: true, message: "OTP envoyé", expiration };
-  // }
 
   async createOtp(utilisateurId: string, canalNotification: CanalNotification.EMAIL | CanalNotification.SMS ) {
     const code = this.generateCode();
@@ -91,6 +68,6 @@ export class OtpService {
 
   async cleanExpiredOtps() {
     const now = new Date();
-    await this.otpRepo.createQueryBuilder().delete().where("expiration < : now",{  now }).execute;
+    await this.otpRepo.createQueryBuilder().delete().where("expiration < :now",{  now }).execute;
   }
 }

@@ -1,4 +1,5 @@
 # Notification-Service
+
 Ce projet implémente un **service de notifications** en **Node.js**, **Express** et **TypeScript**.  
 Il gère deux fonctionnalités principales :
 
@@ -49,3 +50,4 @@ notification-service/
 ├── .env                                  # Variables d’environnement (PORT, DB_URL, etc.)
 ├── package.json                          # Dépendances et scripts du projet
 ├── tsconfig.json                         # Configuration TypeScript
+

@@ -30,7 +30,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Multi-Arch Image
+      - name: Build & Push Multi-Arch Image
         uses: docker/build-push-action@v5
         with:
           context: .

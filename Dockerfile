@@ -1,19 +1,36 @@
-FROM node:18-alpine
 
-# Dossier de travail dans le conteneur
+# =============================
+#  Stage 1 : Build
+# =============================
+FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copier les fichiers de dépendances
-COPY package*.json ./
+# Copier package.json + lock file
+COPY notification-service/package*.json ./
 
-# Installer toutes les dépendances (nodemailer, twilio, typeorm, ts-node…)
+# Installer les dépendances + devDependencies (pour ts-node, typescript…)
 RUN npm install
 
-# Copier tout le code du projet
-COPY . .
+# Copier TOUT le code source
+COPY notification-service/. .
 
-# Exposer le port  
+# Compiler Typescript -> JavaScript
+RUN npm run build
+
+# =============================
+#  Stage 2 : Runtime
+# =============================
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Copier uniquement ce qui sert à l'exécution
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 3000
 
-# Démarrer le service en TypeScript
+# Démarrer la version compilée
 CMD ["npx", "ts-node", "src/server.ts"]
+

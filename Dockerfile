@@ -1,3 +1,4 @@
+
 # =============================
 #  Stage 1 : Build
 # =============================
@@ -31,4 +32,5 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3000
 
 # Démarrer la version compilée
-CMD ["node", "dist/server.js"]
+CMD ["npx", "ts-node", "src/server.ts"]
+

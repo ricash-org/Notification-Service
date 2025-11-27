@@ -1,20 +1,19 @@
-
 # =============================
-#  Stage 1 : Build
+#  Stage 1 : Build (TypeScript → JS)
 # =============================
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copier package.json + lock file
-COPY notification-service/package*.json ./
+# Copier package.json + lock
+COPY package*.json ./
 
-# Installer les dépendances + devDependencies (pour ts-node, typescript…)
+# Installer toutes les dépendances (dev + prod)
 RUN npm install
 
-# Copier TOUT le code source
-COPY notification-service/. .
+# Copier tout le code
+COPY . .
 
-# Compiler Typescript -> JavaScript
+# Compiler en JavaScript dans /dist
 RUN npm run build
 
 # =============================
@@ -24,13 +23,12 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copier uniquement ce qui sert à l'exécution
+# Copier seulement ce qui sert en production
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-# Démarrer la version compilée
-CMD ["npx", "ts-node", "src/server.ts"]
-
+# Démarrer l’application compilée
+CMD ["node", "dist/server.js"]

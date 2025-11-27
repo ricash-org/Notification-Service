@@ -12,14 +12,14 @@ async function startServer() {
 
   try {
     await AppDataSource.initialize();
-    console.log("🟢 Connexion PostgreSQL réussie.");
+    console.log("Connexion PostgreSQL réussie.");
 
     app.listen(PORT, () => {
-      console.log(`🚀 Notification-Service démarré sur le port ${PORT}`);
+      console.log(`Notification-Service démarré sur le port ${PORT}`);
     });
   } catch (error) {
-    console.error("❌ Erreur lors de la connexion PostgreSQL :", error);
-    console.log("🔁 Nouvelle tentative dans 5 secondes...");
+    console.error("Erreur lors de la connexion PostgreSQL :", error);
+    console.log("Nouvelle tentative dans 5 secondes...");
     setTimeout(startServer, 5000);
   }
 }

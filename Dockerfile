@@ -1,19 +1,19 @@
 # =============================
-#  Stage 1 : Build (TypeScript → JS)
+#  Stage 1 : Build
 # =============================
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copier package.json + lock file
+# Copier package.json et lock file
 COPY package*.json ./
 
-# Installer dépendances (dev + prod)
+# Installer toutes les dépendances
 RUN npm install
 
-# Copier tout le projet
+# Copier tout le code source
 COPY . .
 
-# Compiler TypeScript en JavaScript
+# Compiler Typescript -> JavaScript
 RUN npm run build
 
 # =============================
@@ -23,12 +23,13 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copier uniquement ce qui sert en production
+# Copier uniquement ce qui sert à l'exécution
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
+# Exposer le port
 EXPOSE 3000
 
-# Lancer l'app compilée
-CMD ["npm", "start"]
+# Lancer la version compilée
+CMD ["node", "dist/server.js"]

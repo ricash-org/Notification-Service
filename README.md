@@ -18,14 +18,17 @@ Il gère deux fonctionnalités principales :
 ---
 # Endpoints 
 
-Tous les endpoints sont accessibles sous :
+Tous les endpoints sont accessibles sous :<br>
 /api/notifications
  
- **Envoi d’une notification**
- Post /api/notifications/envoyer
+ **Envoi d’une notification**  
+ 
+ Post /api/notifications/envoyer  
+ 
  **Body json**
 {
-  "utilisateurId": "+22350087965",
+  "utilisateurId": "+22350087965",  
+  
   "typeNotification": "CONFIRMATION_TRANSFERT",
   "canal": "SMS",
   "context": {

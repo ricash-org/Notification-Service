@@ -19,12 +19,12 @@ Il gère deux fonctionnalités principales :
 # Endpoints 
 
 Tous les endpoints sont accessibles sous :
-*/api/notifications*
+/api/notifications
  
  **Envoi d’une notification**
  Post /api/notifications/envoyer
  **Body json**
-*{
+{
   "utilisateurId": "+22350087965",
   "typeNotification": "CONFIRMATION_TRANSFERT",
   "canal": "SMS",
@@ -32,9 +32,11 @@ Tous les endpoints sont accessibles sous :
     "montant": 10000,
     "destinataire": "Aisha"
   }
-}*
+}
+
 **Réponse json**
-*{
+
+{
   "id": 42,
   "utilisateurId": "+22350087965",
   "typeNotification": "CONFIRMATION_TRANSFERT",
@@ -42,37 +44,47 @@ Tous les endpoints sont accessibles sous :
   "message": "Votre transfert de 10000 F CFA à Aisha a été confirmé.",
   "statut": "ENVOYEE",
   "createdAt": "2025-12-02T20:10:00.000Z"
-}*
+}
+
 
 **Génération d'otp**
-*POST /api/notifications/otp/generate*
+
+POST /api/notifications/otp/generate
+
 **Body json**
+
 -Envoi par numéro de téléphone
-*{
+{
   "utilisateurId": "+22350087965",
   "canalNotification": "SMS"
-}*
+}
 -Envoi par email
-*{
+{
   "utilisateurId": "youremail@gmail.com",
   "canalNotification": "EMAIL"
-}*
+}
+
 **Vérification d'un otp**
-*POST /api/notifications/otp/verify*
+
+POST /api/notifications/otp/verify
 **BODY JSON**
-*{
+
+{
   "utilisateurId": "+22350087965",
   "code": "1234"
-}*
+}
 **Réponse**
-*{
+{
   "success": true,
   "message": "OTP validé"
-}*
+}
+
 **Autres réponses possibles**
-*{ "success": false, "message": "Code invalide" }
+
+{ "success": false, "message": "Code invalide" }
 { "success": false, "message": "Code expiré" }
-{ "success": false, "message": "Ce code a déjà été utilisé" }*
+{ "success": false, "message": "Ce code a déjà été utilisé" }
+
 ---
 ##  Structure du projet
 

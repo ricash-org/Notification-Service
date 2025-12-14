@@ -32,5 +32,5 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3000
 
 # Démarrer la version compilée
-CMD ["npx", "ts-node", "src/server.ts"]
+CMD ["node", "dist/server.js"]
 

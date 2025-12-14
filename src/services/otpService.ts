@@ -2,6 +2,7 @@ import { AppDataSource } from "../data-source";
 import { Otp } from "../entities/Otp";
 import { NotificationService } from "./notificationService";
 import { CanalNotification, TypeNotification } from "../entities/Notification";
+import { publishNotification } from "../messaging/publisher";
 
 export class OtpService {
   private otpRepo = AppDataSource.getRepository(Otp);
@@ -31,13 +32,28 @@ export class OtpService {
         ? TypeNotification.VERIFICATION_EMAIL
         : TypeNotification.VERIFICATION_TELEPHONE;
 
-    // NotificationService s’occupe de générer le message
-    await this.notificationService.envoyerNotification({
-      utilisateurId,
+    // message standard convenu entre services
+    const message = {
+      traceId: `otp-${otp.id}`, // utile pour idempotence / debug
+      source: "otp-service",
       typeNotification: notifType,
-      canal: canalNotification === "EMAIL" ? CanalNotification.EMAIL : CanalNotification.SMS,
+      canal: canalNotification,
+      utilisateurId,
       context: { code },
-    });
+      meta: { otpId: otp.id, expiresAt: expiration.toISOString() },
+    };
+
+
+    // NotificationService s’occupe de générer le message
+    //await this.notificationService.envoyerNotification({
+    await publishNotification("notifications.main", message
+      //{
+      // utilisateurId,
+      // typeNotification: notifType,
+      // canal: canalNotification === "EMAIL" ? CanalNotification.EMAIL : CanalNotification.SMS,
+      // context: { code },
+   // }
+  );
 
     return { success: true, message: "OTP envoyé", expiration };
   }

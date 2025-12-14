@@ -31,5 +31,7 @@ COPY --from=builder /app/dist ./dist
 # Exposer le port
 EXPOSE 3000
 
+
 # Lancer la version compilée
 CMD ["node", "dist/server.js"]
+

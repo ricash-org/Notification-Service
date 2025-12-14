@@ -10,6 +10,7 @@ services:
     env_file: .env
     depends_on:
       - postgres
+      - rabbitmq
     networks:
       - notification-net
 
@@ -27,6 +28,18 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - notification-net
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ricash
+      RABBITMQ_DEFAULT_PASS: ricash123
+      
+
 
 networks:
   notification-net:

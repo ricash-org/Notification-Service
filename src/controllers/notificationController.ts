@@ -21,7 +21,7 @@ export const getNotifications = async (req: Request, res: Response) => {
 
 export async function testRabbitMQ(req: Request, res: Response) {
   const { queueName, message } = req.body;
-  await publishNotification(queueName, message);
+  await publishNotification(queueName);
   res.json({ success: true });
 }
 

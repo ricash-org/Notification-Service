@@ -1,39 +1,28 @@
-import * as amqp from "amqplib";
+import { ensureChannel, QUEUE } from "../config/rabbitmq";
 import { NotificationService } from "../services/notificationService";
 import { InterServices } from "./contracts/interServices";
-
-
-const QUEUE = "notifications.in";
+import { mapInterServiceToNotification } from "./mappers/notification.mapper";
 
 export async function startExternalNotificationConsumer() {
-  const connection = await amqp.connect(process.env.RABBITMQ_URL!);
-  const channel = await connection.createChannel();
+  const channel = await ensureChannel();
 
-  await channel.assertQueue(QUEUE, { durable: true });
-  channel.prefetch(10);
-
-  console.log("External notification consumer ready");
+  console.log("Consumer externe prêt");
 
   channel.consume(QUEUE, async (msg) => {
     if (!msg) return;
 
-    const payload: InterServices =
-      JSON.parse(msg.content.toString());
+    const payload: InterServices = JSON.parse(msg.content.toString());
 
     try {
       const service = new NotificationService();
+      const notification = mapInterServiceToNotification(payload);
 
-      await service.envoyerNotification({
-        utilisateurId: payload.utilisateurId,
-        typeNotification: payload.typeNotification as any,
-        canal: payload.canal as any,
-        context: payload.context,
-      });
+      await service.envoyerNotification(notification);
 
       channel.ack(msg);
-    } catch (err) {
-      console.error("External notification failed", err);
-      channel.nack(msg, false, false); // DLQ plus tard
+    } catch (error) {
+      console.error("Erreur consumer externe", error);
+      channel.nack(msg, false, false);
     }
   });
 }

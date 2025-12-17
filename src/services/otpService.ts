@@ -46,7 +46,7 @@ export class OtpService {
 
     // NotificationService s’occupe de générer le message
     //await this.notificationService.envoyerNotification({
-    await publishNotification("notifications.main", message
+    await publishNotification("notifications.main"
       //{
       // utilisateurId,
       // typeNotification: notifType,

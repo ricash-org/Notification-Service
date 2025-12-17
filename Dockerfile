@@ -1,25 +1,24 @@
-
 # =============================
 #  Stage 1 : Build
 # =============================
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copier package.json + lock file
-COPY notification-service/package*.json ./
+# Copier package.json et lock file
+COPY package*.json ./
 
-# Installer les dépendances + devDependencies (pour ts-node, typescript…)
+# Installer toutes les dépendances
 RUN npm install
 
-# Copier TOUT le code source
-COPY notification-service/. .
+# Copier tout le code source
+COPY . .
 
 # Compiler Typescript -> JavaScript
 RUN npm run build
 
 # =============================
 #  Stage 2 : Runtime
-# =============================
+# ============================
 FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -29,8 +28,10 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
+# Exposer le port
 EXPOSE 3000
 
-# Démarrer la version compilée
+
+# Lancer la version compilée
 CMD ["node", "dist/server.js"]
 

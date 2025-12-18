@@ -13,7 +13,7 @@ Il gère deux fonctionnalités principales :
 
 - Génération et validation d’OTP avec expiration automatique.  
 - Envoi de notifications personnalisées via des templates.  
-- Architecture modulaire : contrôleurs, services, entités, utilitaires.  
+- Architecture modulaire : contrôleurs, services, entités, utilitaires.
 
 ---
 # Endpoints 

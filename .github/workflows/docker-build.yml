@@ -27,13 +27,14 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.CR_PAT }}
 
       - name: Build & Push
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
           push: true
-          platforms: linux/amd64
-          tags: ghcr.io/ricash-org/notification-service:latest
+          platforms: linux/amd64,linux/arm64
+          file: ./Dockerfile
+          tags: |
+            ghcr.io/ricash-org/notification-service:latest

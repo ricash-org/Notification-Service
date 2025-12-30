@@ -2,7 +2,7 @@ import * as amqp from "amqplib";
 import type { Connection, Channel } from "amqplib";
 
 
-let connection: amqp.Connection | null = null;
+//let connection: amqp.Connection | null = null;
 let channel: Channel | null= null;
 
 /** Variables standardisées */
@@ -30,7 +30,7 @@ export async function ensureChannel(): Promise<Channel> {
     conn.on("close", () => {
       console.error("RabbitMQ fermé – reconnexion...");
       // channel = null;
-      // connection = null;
+       //connection = null;
       setTimeout(ensureChannel, 3000);
     });
 

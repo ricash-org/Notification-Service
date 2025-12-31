@@ -6,9 +6,13 @@ import { startConsumer  } from "./messaging/consumer";
 import { ensureChannel } from "./config/rabbitmq";
 import { startExternalNotificationConsumer } from "./messaging/externalConsumer";
 
+const express = require("express");
+const healthRoute = require("../routes/health");
+
+
 dotenv.config();
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+const PORT = process.env.SERVICE_PORT ? Number(process.env.SERVICE_PORT) : 8000;
 
 
 AppDataSource.initialize()
@@ -22,6 +26,8 @@ AppDataSource.initialize()
 
   })
   .catch((err) => console.error("Erreur de connexion :", err));
+  app.use(express.json());
+app.use("/", healthRoute);
 /*
 async function startServer() {
   console.log("⏳ Initialisation du service de notifications...");

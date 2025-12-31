@@ -13,3 +13,17 @@ router.post("/otp/generate", generateOtp);
 router.post("/otp/verify", verifyOtp);
 
 export default router;
+
+require("dotenv").config();
+const express = require("express");
+const healthRoute = require("../routes/health");
+
+const app = express();
+const PORT = process.env.SERVICE_PORT || 8000;
+
+app.use(express.json());
+app.use("/", healthRoute);
+
+app.listen(PORT, () => {
+  console.log(`🚀 Service running on port ${PORT}`);
+});

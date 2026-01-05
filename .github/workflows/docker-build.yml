@@ -2,11 +2,16 @@ name: Build & Push Notification Service Docker Image
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - develop
+      - main
 
 permissions:
   contents: read
   packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/ricash-org/notification-service
 
 jobs:
   build:
@@ -29,11 +34,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push
+      - name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
           file: ./Dockerfile
-          tags: ghcr.io/ricash-org/notification-service:latest
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}

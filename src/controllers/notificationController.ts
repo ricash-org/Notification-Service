@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { NotificationService } from "../services/notificationService";
 import { publishNotification } from "../messaging/publisher";
+import { NotificationService } from "../services/notificationService";
 
 const service = new NotificationService();
 
@@ -18,10 +18,13 @@ export const getNotifications = async (req: Request, res: Response) => {
   res.json(list);
 };
 
-
 export async function testRabbitMQ(req: Request, res: Response) {
-  const { queueName, message } = req.body;
-  await publishNotification(queueName);
+  const { routingKey, message } = req.body;
+
+  await publishNotification(
+    routingKey || "notification.process",
+    message ?? { test: true },
+  );
+
   res.json({ success: true });
 }
-

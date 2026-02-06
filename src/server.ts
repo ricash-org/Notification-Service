@@ -1,33 +1,49 @@
-import "reflect-metadata";
-import { AppDataSource } from "./data-source";
-import app from "./app";
 import dotenv from "dotenv";
-import { startConsumer  } from "./messaging/consumer";
+import express from "express";
+import "reflect-metadata";
+import app from "./app";
 import { ensureChannel } from "./config/rabbitmq";
+import { AppDataSource } from "./data-source";
+import { startConsumer } from "./messaging/consumer";
 import { startExternalNotificationConsumer } from "./messaging/externalConsumer";
-
-const express = require("express");
-const healthRoute = require("../routes/health");
-
+import healthRoute from "./routes/health";
 
 dotenv.config();
 
 const PORT = process.env.SERVICE_PORT ? Number(process.env.SERVICE_PORT) : 8000;
 
+async function initRabbitWithRetry(maxRetries = 10, delayMs = 3000): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      console.log(`Initialisation RabbitMQ (tentative ${attempt}/${maxRetries})...`);
+      await ensureChannel();
+      await startConsumer();
+      await startExternalNotificationConsumer();
+      console.log("RabbitMQ initialisé, consumers démarrés");
+      return;
+    } catch (err) {
+      console.error(`Échec de l'initialisation RabbitMQ (tentative ${attempt}/${maxRetries}) :`, err);
+      if (attempt === maxRetries) {
+        console.error("Abandon des tentatives d'initialisation RabbitMQ.");
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
 
 AppDataSource.initialize()
   .then(async () => {
-    console.log(" Connexion à la base PostgreSQL réussie");
-     await ensureChannel();
-  await startConsumer();
-    app.listen(PORT, () => console.log(` Serveur démarré sur le port ${PORT}`));
-    //await startExternalNotificationConsumer();
-    await startExternalNotificationConsumer();
+    console.log("Connexion à la base PostgreSQL réussie");
+    app.use(express.json());
+    app.use("/", healthRoute);
 
+    app.listen(PORT, () => console.log(`Serveur démarré sur le port ${PORT}`));
+
+    // Initialisation RabbitMQ en arrière-plan avec retry
+    void initRabbitWithRetry();
   })
   .catch((err) => console.error("Erreur de connexion :", err));
-  app.use(express.json());
-app.use("/", healthRoute);
 /*
 async function startServer() {
   console.log("⏳ Initialisation du service de notifications...");
@@ -47,4 +63,3 @@ async function startServer() {
 }
 
 startServer();*/
-

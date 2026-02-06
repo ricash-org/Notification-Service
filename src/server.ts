@@ -12,17 +12,25 @@ dotenv.config();
 
 const PORT = process.env.SERVICE_PORT ? Number(process.env.SERVICE_PORT) : 8000;
 
-async function initRabbitWithRetry(maxRetries = 10, delayMs = 3000): Promise<void> {
+async function initRabbitWithRetry(
+  maxRetries = 10,
+  delayMs = 3000,
+): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
-      console.log(`Initialisation RabbitMQ (tentative ${attempt}/${maxRetries})...`);
+      console.log(
+        `Initialisation RabbitMQ (tentative ${attempt}/${maxRetries})...`,
+      );
       await ensureChannel();
       await startConsumer();
       await startExternalNotificationConsumer();
       console.log("RabbitMQ initialisé, consumers démarrés");
       return;
     } catch (err) {
-      console.error(`Échec de l'initialisation RabbitMQ (tentative ${attempt}/${maxRetries}) :`, err);
+      console.error(
+        `Échec de l'initialisation RabbitMQ (tentative ${attempt}/${maxRetries}) :`,
+        err,
+      );
       if (attempt === maxRetries) {
         console.error("Abandon des tentatives d'initialisation RabbitMQ.");
         return;

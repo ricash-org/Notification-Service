@@ -6,7 +6,7 @@ services:
     container_name: notification-service
     restart: always
     ports:
-      - "3000:3000"
+      - "8005:8005"
     env_file: .env
     depends_on:
       - postgres
@@ -28,7 +28,7 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - notification-net
-  
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -38,8 +38,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ricash
       RABBITMQ_DEFAULT_PASS: ricash123
-      
-
+    networks:
+      - notification-net
 
 networks:
   notification-net:

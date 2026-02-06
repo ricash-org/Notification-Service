@@ -3,6 +3,7 @@ import { CanalNotification, TypeNotification } from "../entities/Notification";
 import { Otp } from "../entities/Otp";
 import { InterServices } from "../messaging/contracts/interServices";
 import { publishNotification } from "../messaging/publisher";
+import { userContactService } from "./userContactService";
 
 export class OtpService {
   private otpRepo = AppDataSource.getRepository(Otp);
@@ -20,11 +21,16 @@ export class OtpService {
     const code = this.generateCode();
     const expiration = new Date(Date.now() + this.expirationDelay);
 
+    // Récupération des coordonnées pour tracer l'adresse réellement utilisée
+    const contact = await userContactService.getContact(utilisateurId);
+
     const otp = this.otpRepo.create({
-      utilisateurId,
+      utilisateurId, // identifiant métier
       canal: canalNotification,
       code,
       expiration,
+      destinationEmail: contact.email,
+      destinationPhone: contact.phone,
     });
     await this.otpRepo.save(otp);
 

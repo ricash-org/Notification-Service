@@ -17,7 +17,10 @@ export class UserContactService {
     // Exemple de données de test ; à adapter ou supprimer en prod
     ["user-test-email", { email: "test.email@example.com" }],
     ["user-test-sms", { phone: "+221770000000" }],
-    ["user-test-both", { email: "test.both@example.com", phone: "+221770000001" }],
+    [
+      "user-test-both",
+      { email: "test.both@example.com", phone: "+221770000001" },
+    ],
   ]);
 
   async getContact(utilisateurId: string): Promise<UserContact> {

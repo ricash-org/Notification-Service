@@ -1,5 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from "typeorm";
-import { CanalNotification, TypeNotification } from "./Notification";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from "typeorm";
+import { CanalNotification } from "./Notification";
 
 @Entity()
 export class Otp {
@@ -19,8 +24,8 @@ export class Otp {
   @Column()
   code!: string;
 
-//   @Column()
-//   type: TypeNotification; 
+  //   @Column()
+  //   type: TypeNotification;
   @Column()
   canal!: CanalNotification; // EMAIL ou TELEPHONE
 

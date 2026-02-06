@@ -1,14 +1,22 @@
-import { AppDataSource } from "../data-source";
-import { CanalNotification, Notification, StatutNotification, TypeNotification } from "../entities/Notification";
-import twilio from "twilio";
 import dotenv from "dotenv";
-import { generateMessage } from "../utils/messageTemplates";
+import twilio from "twilio";
+import { AppDataSource } from "../data-source";
+import {
+  CanalNotification,
+  Notification,
+  StatutNotification,
+  TypeNotification,
+} from "../entities/Notification";
 import { sendEmail } from "../utils/mailService";
+import { generateMessage } from "../utils/messageTemplates";
 import { userContactService } from "./userContactService";
 
 dotenv.config();
 
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN,
+);
 
 export class NotificationService {
   private notifRepo = AppDataSource.getRepository(Notification);
@@ -36,7 +44,6 @@ export class NotificationService {
   //     throw new Error("Erreur d'envoi : " + error);
   //   }
   // }
-
 
   async envoyerNotification(data: {
     utilisateurId: string; // identifiant métier (ex: user-123)

@@ -34,6 +34,12 @@ export class Notification {
   @Column()
   utilisateurId!: string;
 
+  @Column({ nullable: true })
+  destinationEmail?: string;
+
+  @Column({ nullable: true })
+  destinationPhone?: string;
+
   @Column({ type: "enum", enum: TypeNotification })
   typeNotification!: TypeNotification;
 

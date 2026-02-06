@@ -10,6 +10,12 @@ export class Otp {
   utilisateurId!: string; // destinaire
   // email ou numéro de téléphone
 
+  @Column({ nullable: true })
+  destinationEmail?: string;
+
+  @Column({ nullable: true })
+  destinationPhone?: string;
+
   @Column()
   code!: string;
 

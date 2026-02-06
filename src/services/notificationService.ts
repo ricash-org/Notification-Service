@@ -4,6 +4,7 @@ import twilio from "twilio";
 import dotenv from "dotenv";
 import { generateMessage } from "../utils/messageTemplates";
 import { sendEmail } from "../utils/mailService";
+import { userContactService } from "./userContactService";
 
 dotenv.config();
 
@@ -37,35 +38,63 @@ export class NotificationService {
   // }
 
 
-   async envoyerNotification(data: {
-    utilisateurId: string;
+  async envoyerNotification(data: {
+    utilisateurId: string; // identifiant métier (ex: user-123)
     typeNotification: TypeNotification;
     canal: CanalNotification;
     context?: any;
   }) {
-    // ✅ Génération automatique du message personnalisé
+    // Génération automatique du message personnalisé
     const message = generateMessage(data.typeNotification, data.context || {});
 
+    // Récupération des coordonnées à partir de l'identifiant métier
+    const contact = await userContactService.getContact(data.utilisateurId);
+
+    let destinationEmail: string | undefined;
+    let destinationPhone: string | undefined;
+
+    if (data.canal === CanalNotification.EMAIL) {
+      destinationEmail = contact.email;
+      if (!destinationEmail) {
+        throw new Error(
+          `Aucune adresse email trouvée pour l'utilisateur ${data.utilisateurId}`,
+        );
+      }
+    }
+
+    if (data.canal === CanalNotification.SMS) {
+      destinationPhone = contact.phone;
+      if (!destinationPhone) {
+        throw new Error(
+          `Aucun numéro de téléphone trouvé pour l'utilisateur ${data.utilisateurId}`,
+        );
+      }
+    }
+
     const notif = this.notifRepo.create({
-      ...data,
+      utilisateurId: data.utilisateurId,
+      typeNotification: data.typeNotification,
+      canal: data.canal,
+      context: data.context,
       message,
+      destinationEmail,
+      destinationPhone,
       statut: StatutNotification.EN_COURS,
     });
 
     await this.notifRepo.save(notif);
 
     try {
-      if (notif.canal === CanalNotification.SMS) {
+      if (notif.canal === CanalNotification.SMS && destinationPhone) {
         await client.messages.create({
           body: message,
           from: process.env.TWILIO_PHONE_NUMBER,
-          to: data.utilisateurId, // ici utilisateurId = numéro pour simplifier
+          to: destinationPhone,
         });
       }
 
-      //Envoi d'email si canal = EMAIL 
-        if (notif.canal === CanalNotification.EMAIL) {
-        await sendEmail(data.utilisateurId," HELLO ", message);
+      if (notif.canal === CanalNotification.EMAIL && destinationEmail) {
+        await sendEmail(destinationEmail, "HELLO", message);
       }
 
       notif.statut = StatutNotification.ENVOYEE;

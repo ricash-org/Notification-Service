@@ -15,11 +15,11 @@ export interface UserContact {
 export class UserContactService {
   private contacts = new Map<string, UserContact>([
     // Exemple de données de test ; à adapter ou supprimer en prod
-    ["user-test-email", { email: "test.email@example.com" }],
-    ["user-test-sms", { phone: "+221770000000" }],
+    ["user-test-email", { email: "managerdayif@gmail.com" }],
+    ["user-test-sms", { phone: "+22379994640" }],
     [
       "user-test-both",
-      { email: "test.both@example.com", phone: "+221770000001" },
+      { email: "managerdayif@gmail.com", phone: "+22379994640" },
     ],
   ]);
 

@@ -50,32 +50,47 @@ export class NotificationService {
     typeNotification: TypeNotification;
     canal: CanalNotification;
     context?: any;
+    /** Coordonnées facultatives fournies directement par l'appelant */
+    email?: string | null;
+    phone?: string | null;
   }) {
     // Génération automatique du message personnalisé
     const message = generateMessage(data.typeNotification, data.context || {});
 
-    // Récupération des coordonnées à partir de l'identifiant métier
-    const contact = await userContactService.getContact(data.utilisateurId);
+    // 1. On part des coordonnées explicitement fournies dans la requête / l'événement
+    let destinationEmail: string | undefined = data.email ?? undefined;
+    let destinationPhone: string | undefined = data.phone ?? undefined;
 
-    let destinationEmail: string | undefined;
-    let destinationPhone: string | undefined;
+    // 2. Si au moins une coordonnée manque, on essaie de la compléter via le service de contact
+    if (!destinationEmail || !destinationPhone) {
+      const contact = await userContactService.getContact(data.utilisateurId);
 
-    if (data.canal === CanalNotification.EMAIL) {
-      destinationEmail = contact.email;
-      if (!destinationEmail) {
-        throw new Error(
-          `Aucune adresse email trouvée pour l'utilisateur ${data.utilisateurId}`,
-        );
+      if (!destinationEmail && contact.email) {
+        destinationEmail = contact.email;
+      }
+      if (!destinationPhone && contact.phone) {
+        destinationPhone = contact.phone;
       }
     }
 
-    if (data.canal === CanalNotification.SMS) {
-      destinationPhone = contact.phone;
-      if (!destinationPhone) {
-        throw new Error(
-          `Aucun numéro de téléphone trouvé pour l'utilisateur ${data.utilisateurId}`,
-        );
-      }
+    // 3. Validation générale : au moins un des deux doit être présent
+    if (!destinationEmail && !destinationPhone) {
+      throw new Error(
+        `Aucun contact (email ou téléphone) disponible pour l'utilisateur ${data.utilisateurId}`,
+      );
+    }
+
+    // 4. Validation spécifique au canal demandé
+    if (data.canal === CanalNotification.EMAIL && !destinationEmail) {
+      throw new Error(
+        `Canal EMAIL demandé mais aucune adresse email valide pour l'utilisateur ${data.utilisateurId}`,
+      );
+    }
+
+    if (data.canal === CanalNotification.SMS && !destinationPhone) {
+      throw new Error(
+        `Canal SMS demandé mais aucun numéro de téléphone valide pour l'utilisateur ${data.utilisateurId}`,
+      );
     }
 
     const notif = this.notifRepo.create({

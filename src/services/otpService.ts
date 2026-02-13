@@ -17,20 +17,41 @@ export class OtpService {
   async createOtp(
     utilisateurId: string,
     canalNotification: CanalNotification.EMAIL | CanalNotification.SMS,
+    email?: string | null,
+    phone?: string | null,
   ) {
     const code = this.generateCode();
     const expiration = new Date(Date.now() + this.expirationDelay);
+    // 1. On part des coordonnées éventuellement fournies en entrée
+    let destinationEmail: string | undefined = email ?? undefined;
+    let destinationPhone: string | undefined = phone ?? undefined;
 
-    // Récupération des coordonnées pour tracer l'adresse réellement utilisée
-    const contact = await userContactService.getContact(utilisateurId);
+    // 2. Si nécessaire, on complète via le service de contact
+    if (!destinationEmail || !destinationPhone) {
+      const contact = await userContactService.getContact(utilisateurId);
+
+      if (!destinationEmail && contact.email) {
+        destinationEmail = contact.email;
+      }
+      if (!destinationPhone && contact.phone) {
+        destinationPhone = contact.phone;
+      }
+    }
+
+    // 3. Validation : au moins un des deux doit être présent
+    if (!destinationEmail && !destinationPhone) {
+      throw new Error(
+        `Aucun contact (email ou téléphone) disponible pour l'utilisateur ${utilisateurId}`,
+      );
+    }
 
     const otp = this.otpRepo.create({
       utilisateurId, // identifiant métier
       canal: canalNotification,
       code,
       expiration,
-      destinationEmail: contact.email,
-      destinationPhone: contact.phone,
+      destinationEmail,
+      destinationPhone,
     });
     await this.otpRepo.save(otp);
 
@@ -46,6 +67,8 @@ export class OtpService {
       typeNotification: notifType,
       canal: canalNotification,
       context: { code },
+      email: destinationEmail,
+      phone: destinationPhone,
       metadata: {
         service: "notification-service:otp",
         correlationId: `otp-${otp.id}`,

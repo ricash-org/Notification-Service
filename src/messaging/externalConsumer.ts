@@ -14,10 +14,21 @@ export async function startExternalNotificationConsumer() {
     const payload: InterServices = JSON.parse(msg.content.toString());
 
     try {
+      console.log(
+        "[ExternalConsumer] Message reçu sur",
+        QUEUE,
+        "payload:",
+        payload,
+      );
       const service = new NotificationService();
       const notification = mapInterServiceToNotification(payload);
 
       await service.envoyerNotification(notification);
+
+      console.log(
+        "[ExternalConsumer] Notification traitée pour utilisateurId=",
+        notification.utilisateurId,
+      );
 
       channel.ack(msg);
     } catch (error) {

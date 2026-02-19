@@ -1,12 +1,11 @@
 import { AppDataSource } from "../data-source";
-import { Otp } from "../entities/Otp";
-import { NotificationService } from "./notificationService";
 import { CanalNotification, TypeNotification } from "../entities/Notification";
+import { Otp } from "../entities/Otp";
+import { InterServices } from "../messaging/contracts/interServices";
 import { publishNotification } from "../messaging/publisher";
 
 export class OtpService {
   private otpRepo = AppDataSource.getRepository(Otp);
-  private notificationService = new NotificationService();
 
   private generateCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString(); // 4chiffres
@@ -14,16 +13,25 @@ export class OtpService {
 
   private expirationDelay = 5 * 60 * 1000; // 5 minutes
 
-  async createOtp(utilisateurId: string, canalNotification: CanalNotification.EMAIL | CanalNotification.SMS ) {
+  async createOtp(
+    utilisateurId: string,
+    canalNotification: CanalNotification.EMAIL | CanalNotification.SMS,
+    email: string,
+    phone: string,
+  ) {
     const code = this.generateCode();
     const expiration = new Date(Date.now() + this.expirationDelay);
+    const destinationEmail: string = email;
+    const destinationPhone: string = phone;
 
     const otp = this.otpRepo.create({
-        utilisateurId,
-        canal: canalNotification,
-        code,
-        expiration
-       });
+      utilisateurId, // identifiant métier
+      canal: canalNotification,
+      code,
+      expiration,
+      destinationEmail,
+      destinationPhone,
+    });
     await this.otpRepo.save(otp);
 
     //  Détermination automatique du type de notification
@@ -32,32 +40,26 @@ export class OtpService {
         ? TypeNotification.VERIFICATION_EMAIL
         : TypeNotification.VERIFICATION_TELEPHONE;
 
-    // message standard convenu entre services
-    const message = {
-      traceId: `otp-${otp.id}`, // utile pour idempotence / debug
-      source: "otp-service",
+    // message standard inter-services (aligné sur InterServices / NotificationEvent)
+    const message: InterServices = {
+      utilisateurId,
       typeNotification: notifType,
       canal: canalNotification,
-      utilisateurId,
       context: { code },
-      meta: { otpId: otp.id, expiresAt: expiration.toISOString() },
+      email: destinationEmail,
+      phone: destinationPhone,
+      metadata: {
+        service: "notification-service:otp",
+        correlationId: `otp-${otp.id}`,
+      },
     };
 
-
-    // NotificationService s’occupe de générer le message
-    //await this.notificationService.envoyerNotification({
-    await publishNotification("notifications.main"
-      //{
-      // utilisateurId,
-      // typeNotification: notifType,
-      // canal: canalNotification === "EMAIL" ? CanalNotification.EMAIL : CanalNotification.SMS,
-      // context: { code },
-   // }
-  );
+    // Publication d'un événement OTP sur l'exchange partagé (ex: ricash.events)
+    // Routing key dédiée : otp.verification (captée via le binding "otp.*")
+    await publishNotification("otp.verification", message);
 
     return { success: true, message: "OTP envoyé", expiration };
   }
-
 
   async verifyOtp(utilisateurId: string, code: string) {
     const otp = await this.otpRepo.findOne({
@@ -84,6 +86,9 @@ export class OtpService {
 
   async cleanExpiredOtps() {
     const now = new Date();
-    await this.otpRepo.createQueryBuilder().delete().where("expiration < :now",{  now }).execute;
+    await this.otpRepo
+      .createQueryBuilder()
+      .delete()
+      .where("expiration < :now", { now }).execute;
   }
 }

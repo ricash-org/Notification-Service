@@ -278,7 +278,7 @@ export class NotificationService {
       }
 
       if (notif.canal === CanalNotification.EMAIL && destinationEmail) {
-        await sendEmail(destinationEmail, "HELLO", message);
+        await sendEmail(destinationEmail, "RICASH NOTIFICATION", message);
       }
 
       notif.statut = StatutNotification.ENVOYEE;

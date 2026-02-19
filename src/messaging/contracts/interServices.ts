@@ -11,7 +11,6 @@ export interface InterServices {
     | "VERIFICATION_KYC";
 
   canal: "SMS" | "EMAIL" | "PUSH";
-
   /**
    * Coordonnées facultatives transmises par le producteur de l'événement.
    * L'un des deux doit être renseigné (ou récupéré côté service de notif),

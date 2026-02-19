@@ -2,8 +2,19 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mapInterServiceToNotification = mapInterServiceToNotification;
 function mapInterServiceToNotification(payload) {
+    // On choisit la "vraie" cible en fonction du canal :
+    // - EMAIL  -> on privilégie payload.email si présent
+    // - SMS    -> on privilégie payload.phone si présent
+    // - autres -> on retombe sur payload.utilisateurId
+    let utilisateurId = payload.utilisateurId;
+    if (payload.canal === "EMAIL" && payload.email) {
+        utilisateurId = payload.email;
+    }
+    else if (payload.canal === "SMS" && payload.phone) {
+        utilisateurId = payload.phone;
+    }
     return {
-        utilisateurId: payload.utilisateurId,
+        utilisateurId,
         typeNotification: payload.typeNotification,
         canal: payload.canal,
         context: payload.context,

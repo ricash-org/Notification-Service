@@ -185,7 +185,7 @@ class NotificationService {
                 });
             }
             if (notif.canal === Notification_1.CanalNotification.EMAIL && destinationEmail) {
-                await (0, mailService_1.sendEmail)(destinationEmail, "HELLO", message);
+                await (0, mailService_1.sendEmail)(destinationEmail, "RICASH NOTIFICATION", message);
             }
             notif.statut = Notification_1.StatutNotification.ENVOYEE;
             await this.notifRepo.save(notif);

@@ -5,6 +5,12 @@ const Notification_1 = require("../entities/Notification");
 const generateMessage = (type, context) => {
     switch (type) {
         case Notification_1.TypeNotification.CONFIRMATION_TRANSFERT:
+            // Pour les transferts, on distingue l'expéditeur (direction="debit") et le destinataire (direction="credit").
+            if (context?.direction === "credit") {
+                // Message pour le bénéficiaire qui reçoit un transfert
+                return `Vous avez reçu un transfert de ${context.destinataire} de ${context.montant} ${context.currency ?? "FCFA"}. Nouveau solde: ${context.balance ?? context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
+            }
+            // Par défaut (et pour direction="debit"), message pour l'expéditeur
             return `Votre transfert de ${context.montant} ${context.currency ?? "FCFA"} vers ${context.destinataire} a été confirmé. Nouveau solde: ${context.balance ?? context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
         case Notification_1.TypeNotification.CONFIRMATION_RETRAIT:
             return `Votre demande de retrait de ${context.montant} ${context.currency ?? "FCFA"} est en cours de traitement. Référence: ${context.transactionId}.`;

@@ -1,29 +1,39 @@
 import { Request, Response } from "express";
+import { z } from "zod";
+import { CanalNotification } from "../entities/Notification";
 import { OtpService } from "../services/otpService";
 
 const otpService = new OtpService();
 
+const GenerateOtpSchema = z.object({
+  utilisateurId: z.string().min(1),
+  canalNotification: z.enum(["SMS", "EMAIL"]),
+  email: z.string().email(),
+  phone: z.string().min(8),
+});
+
 export const generateOtp = async (req: Request, res: Response) => {
   try {
-    const { utilisateurId, canalNotification, email, phone } = req.body;
+    const parsed = GenerateOtpSchema.safeParse(req.body);
 
-    // Si l'appelant fournit explicitement les coordonnées, on valide
-    if (email !== undefined || phone !== undefined) {
-      const hasEmail = typeof email === "string" && email.trim().length > 0;
-      const hasPhone = typeof phone === "string" && phone.trim().length > 0;
-
-      if (!hasEmail && !hasPhone) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Au moins un des champs 'email' ou 'phone' doit être renseigné lorsque vous fournissez les coordonnées.",
-        });
-      }
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Corps de requête invalide",
+        errors: parsed.error.flatten(),
+      });
     }
+
+    const { utilisateurId, canalNotification, email, phone } = parsed.data;
+
+    const canalEnum =
+      canalNotification === "SMS"
+        ? CanalNotification.SMS
+        : CanalNotification.EMAIL;
 
     const result = await otpService.createOtp(
       utilisateurId,
-      canalNotification,
+      canalEnum,
       email,
       phone,
     );

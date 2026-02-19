@@ -3,7 +3,6 @@ import { CanalNotification, TypeNotification } from "../entities/Notification";
 import { Otp } from "../entities/Otp";
 import { InterServices } from "../messaging/contracts/interServices";
 import { publishNotification } from "../messaging/publisher";
-import { userContactService } from "./userContactService";
 
 export class OtpService {
   private otpRepo = AppDataSource.getRepository(Otp);
@@ -17,33 +16,13 @@ export class OtpService {
   async createOtp(
     utilisateurId: string,
     canalNotification: CanalNotification.EMAIL | CanalNotification.SMS,
-    email?: string | null,
-    phone?: string | null,
+    email: string,
+    phone: string,
   ) {
     const code = this.generateCode();
     const expiration = new Date(Date.now() + this.expirationDelay);
-    // 1. On part des coordonnées éventuellement fournies en entrée
-    let destinationEmail: string | undefined = email ?? undefined;
-    let destinationPhone: string | undefined = phone ?? undefined;
-
-    // 2. Si nécessaire, on complète via le service de contact
-    if (!destinationEmail || !destinationPhone) {
-      const contact = await userContactService.getContact(utilisateurId);
-
-      if (!destinationEmail && contact.email) {
-        destinationEmail = contact.email;
-      }
-      if (!destinationPhone && contact.phone) {
-        destinationPhone = contact.phone;
-      }
-    }
-
-    // 3. Validation : au moins un des deux doit être présent
-    if (!destinationEmail && !destinationPhone) {
-      throw new Error(
-        `Aucun contact (email ou téléphone) disponible pour l'utilisateur ${utilisateurId}`,
-      );
-    }
+    const destinationEmail: string = email;
+    const destinationPhone: string = phone;
 
     const otp = this.otpRepo.create({
       utilisateurId, // identifiant métier

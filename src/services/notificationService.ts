@@ -18,6 +18,29 @@ const client = twilio(
   process.env.TWILIO_AUTH_TOKEN,
 );
 
+export interface ContactInfoDTO {
+  email: string;
+  phone: string;
+}
+
+export interface TransferNotificationDTO {
+  type: "transfer";
+  sender: ContactInfoDTO;
+  receiver: ContactInfoDTO;
+  amount: number;
+  content: string;
+}
+
+export interface SimpleNotificationDTO {
+  type: string;
+  user: ContactInfoDTO;
+  content: string;
+}
+
+export type HttpNotificationDTO =
+  | TransferNotificationDTO
+  | SimpleNotificationDTO;
+
 export class NotificationService {
   private notifRepo = AppDataSource.getRepository(Notification);
 
@@ -44,6 +67,145 @@ export class NotificationService {
   //     throw new Error("Erreur d'envoi : " + error);
   //   }
   // }
+
+  private mapStringToTypeNotification(type: string): TypeNotification {
+    switch (type) {
+      case "transfer":
+        return TypeNotification.CONFIRMATION_TRANSFERT;
+      case "retrait_reussi":
+      case "RETRAIT_REUSSI":
+        return TypeNotification.RETRAIT_REUSSI;
+      case "depot_reussi":
+      case "DEPOT_REUSSI":
+        return TypeNotification.DEPOT_REUSSI;
+      case "alert_securite":
+      case "ALERT_SECURITE":
+        return TypeNotification.ALERT_SECURITE;
+      case "verification_email":
+      case "VERIFICATION_EMAIL":
+        return TypeNotification.VERIFICATION_EMAIL;
+      case "verification_telephone":
+      case "VERIFICATION_TELEPHONE":
+        return TypeNotification.VERIFICATION_TELEPHONE;
+      case "verification_kyc":
+      case "VERIFICATION_KYC":
+        return TypeNotification.VERIFICATION_KYC;
+      default:
+        return TypeNotification.ALERT_SECURITE;
+    }
+  }
+
+  private async sendMultiChannelToContact(
+    contact: ContactInfoDTO,
+    content: string,
+    type: TypeNotification,
+    role: string,
+    extraContext?: Record<string, any>,
+  ) {
+    const context = { ...(extraContext || {}), role };
+
+    // SMS
+    const notifSms = this.notifRepo.create({
+      utilisateurId: contact.phone,
+      typeNotification: type,
+      canal: CanalNotification.SMS,
+      context,
+      message: content,
+      destinationPhone: contact.phone,
+      statut: StatutNotification.EN_COURS,
+    });
+
+    await this.notifRepo.save(notifSms);
+
+    try {
+      await client.messages.create({
+        body: content,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: contact.phone,
+      });
+      notifSms.statut = StatutNotification.ENVOYEE;
+    } catch (error) {
+      notifSms.statut = StatutNotification.ECHEC;
+      console.error("Erreur d'envoi SMS :", error);
+    }
+
+    await this.notifRepo.save(notifSms);
+
+    // EMAIL
+    const notifEmail = this.notifRepo.create({
+      utilisateurId: contact.email,
+      typeNotification: type,
+      canal: CanalNotification.EMAIL,
+      context,
+      message: content,
+      destinationEmail: contact.email,
+      statut: StatutNotification.EN_COURS,
+    });
+
+    await this.notifRepo.save(notifEmail);
+
+    try {
+      await sendEmail(contact.email, "Notification", content);
+      notifEmail.statut = StatutNotification.ENVOYEE;
+    } catch (error) {
+      notifEmail.statut = StatutNotification.ECHEC;
+      console.error("Erreur d'envoi email :", error);
+    }
+
+    await this.notifRepo.save(notifEmail);
+
+    return {
+      sms: notifSms,
+      email: notifEmail,
+    };
+  }
+
+  /**
+   * Endpoint HTTP (Postman) :
+   *  - dépend UNIQUEMENT des coordonnées fournies dans le JSON
+   *  - envoie systématiquement sur email ET SMS quand fournis
+   *  - gère le cas spécifique type = "transfer" (sender / receiver)
+   */
+  async envoyerNotificationFromHttp(payload: HttpNotificationDTO) {
+    if (payload.type === "transfer") {
+      const transferPayload = payload as TransferNotificationDTO;
+      const type = this.mapStringToTypeNotification(payload.type);
+
+      const senderResult = await this.sendMultiChannelToContact(
+        transferPayload.sender,
+        transferPayload.content,
+        type,
+        "SENDER",
+        { montant: transferPayload.amount },
+      );
+      const receiverResult = await this.sendMultiChannelToContact(
+        transferPayload.receiver,
+        transferPayload.content,
+        type,
+        "RECEIVER",
+        { montant: transferPayload.amount },
+      );
+
+      return {
+        sender: senderResult,
+        receiver: receiverResult,
+      };
+    }
+
+    const simplePayload = payload as SimpleNotificationDTO;
+    const type = this.mapStringToTypeNotification(simplePayload.type);
+
+    const userResult = await this.sendMultiChannelToContact(
+      simplePayload.user,
+      simplePayload.content,
+      type,
+      "USER",
+    );
+
+    return {
+      user: userResult,
+    };
+  }
 
   async envoyerNotification(data: {
     utilisateurId: string; // identifiant métier (ex: user-123)

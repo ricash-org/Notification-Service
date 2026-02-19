@@ -3,16 +3,16 @@ import { TypeNotification } from "../entities/Notification";
 export const generateMessage = (type: TypeNotification, context: any) => {
   switch (type) {
     case TypeNotification.CONFIRMATION_TRANSFERT:
-      return `Votre transfert de ${context.montant} FCFA vers ${context.destinataire} a été confirmé.`;
+      return `Votre transfert de ${context.montant} ${context.currency ?? "FCFA"} vers ${context.destinataire} a été confirmé. Nouveau solde: ${context.balance ?? context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
 
     case TypeNotification.CONFIRMATION_RETRAIT:
-      return `Votre demande de retrait de ${context.montant} FCFA est en cours de traitement.`;
+      return `Votre demande de retrait de ${context.montant} ${context.currency ?? "FCFA"} est en cours de traitement. Référence: ${context.transactionId}.`;
 
     case TypeNotification.RETRAIT_REUSSI:
-      return `Votre retrait de ${context.montant} FCFA a été effectué avec succès.`;
+      return `Votre retrait de ${context.montant} ${context.currency ?? "FCFA"} a été effectué avec succès. Nouveau solde: ${context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
 
     case TypeNotification.DEPOT_REUSSI:
-      return `Vous avez reçu un dépôt de ${context.montant} FCFA sur votre compte.`;
+      return `Vous avez reçu un dépôt de ${context.montant} ${context.currency ?? "FCFA"} sur votre compte. Nouveau solde: ${context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
 
     case TypeNotification.ALERT_SECURITE:
       return `Alerte sécurité : connexion suspecte depuis un nouvel appareil.`;
@@ -21,10 +21,10 @@ export const generateMessage = (type: TypeNotification, context: any) => {
       return `Votre vérification d’identité (KYC) est ${context.status === "valide" ? "validée " : "en attente "}.`;
 
     case TypeNotification.VERIFICATION_EMAIL:
-      return `Votre code de vérification email est : ${context.code}`;
+      return `Votre code de vérification email est : ${context.code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers.`;
 
     case TypeNotification.VERIFICATION_TELEPHONE:
-      return `Votre code OTP de vérification téléphone est : ${context.code}`;
+      return `Votre code OTP de vérification téléphone est : ${context.code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers.`;
 
     default:
       return `Notification générique`;

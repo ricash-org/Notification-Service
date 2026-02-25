@@ -63,130 +63,233 @@ Depuis la refonte, le service est **strictement dépendant des coordonnées four
 - Le schéma Zod impose :
   - `type` = `"transfer"`.
   - `sender.email` / `sender.phone` obligatoires.
-  - `receiver.email` / `receiver.phone` obligatoires.
-  - `amount > 0`.
-  - `content` non vide.
-- Le service crée **deux paires de notifications** (SMS + EMAIL) :
-  - Pour l’expéditeur (role = `SENDER`).
-  - Pour le destinataire (role = `RECEIVER`).
-- Les messages sont envoyés :
-  - par SMS via Twilio sur `phone`.
-  - par email via `mailService.sendEmail` sur `email`.
-- Le `context` des entités `Notification` contient notamment `montant` et `role`.
 
-#### b) Notification simple (autres types)
+  # Notification-Service
 
-```json
-{
-  "type": "ALERT_SECURITE",
-  "user": {
-    "email": "client@mail.com",
-    "phone": "+22322222222"
-  },
-  "content": "Connexion suspecte détectée."
-}
-```
+  Service de notifications (e-mail & SMS & OTP) développé en Node.js, Express et TypeScript.
 
-- `type` peut être l’une des valeurs de `TypeNotification` (sauf `"transfer"` qui utilise le schéma dédié).
-- `user.email` et `user.phone` sont obligatoires.
-- Le service envoie systématiquement la notification **à la fois par SMS et par email**.
+  Ce README décrit l'installation, la configuration, les endpoints, les variables d'environnement et les bonnes pratiques pour déployer et tester le service.
 
-En cas de JSON invalide (champ manquant / mauvais type), le contrôleur renvoie :
+  Table des matières
+  - Présentation
+  - Prérequis
+  - Installation
+  - Variables d'environnement
+  - Commandes utiles
+  - Endpoints et exemples
+  - Health checks
+  - Docker / Compose
+  - Débogage et logs
+  - Notes de sécurité
 
-```json
-{
-  "success": false,
-  "message": "Corps de requête invalide",
-  "errors": { ...détail Zod... }
-}
-```
+  ***
 
-### 2. Génération d’OTP
+  ## Présentation
 
-`POST /api/notifications/otp/generate`
+  Ce service reçoit des requêtes HTTP pour envoyer des notifications et générer/vérifier des OTP. Il s'intègre avec :
+  - PostgreSQL (TypeORM)
+  - RabbitMQ (échange partagé, queue privée)
+  - Twilio (SMS)
+  - Nodemailer (e-mail)
 
-Le service génère un code OTP (4 chiffres), l’enregistre en base avec une expiration (5 minutes) puis publie un événement `otp.verification` sur RabbitMQ. Désormais, il dépend **strictement** des coordonnées envoyées dans le JSON.
+  Le code organise les responsabilités en contrôleurs, services, entités, utilitaires et messaging (publisher/consumer).
 
-```json
-{
-  "utilisateurId": "user-otp-1",
-  "canalNotification": "SMS",
-  "email": "userotp@mail.com",
-  "phone": "+22300000000"
-}
-```
+  ## Prérequis
+  - Node.js >= 18
+  - npm
+  - PostgreSQL accessible (ou instance locale)
+  - RabbitMQ accessible (ou instance locale)
+  - Compte Twilio (si SMS en production) ou configuration de mock
+  - Compte e-mail (Gmail ou SMTP compatible) pour envoi d'e-mails
 
-- `utilisateurId`: identifiant métier (user id).
-- `canalNotification`: `"SMS"` ou `"EMAIL"`.
-- `email`: email du destinataire (obligatoire).
-- `phone`: numéro du destinataire (obligatoire).
+  ## Installation
+  1. Cloner le dépôt et positionnez-vous dans le dossier du service :
 
-│ │ ├── Notification.ts # Modèle de données pour les notifications
+  ```bash
+  cd notification_service
+  ```
 
-L’événement publié (contrat inter-services) contient :
+  2. Installer les dépendances :
 
-```json
-{
-  "utilisateurId": "user-otp-1",
-  "typeNotification": "VERIFICATION_TELEPHONE",
-  "canal": "SMS",
-  "context": { "code": "1234" },
-  "email": "userotp@mail.com",
-  "phone": "+22300000000",
-  "metadata": {
-    "service": "notification-service:otp",
-    "correlationId": "otp-<id>"
-  }
-}
-```
+  ```bash
+  npm install
+  ```
 
-Les templates de message utilisent ce `context` pour produire des textes explicites, par exemple :
+  3. Compiler TypeScript :
 
-- `VERIFICATION_TELEPHONE` :
-  > « Votre code OTP de vérification téléphone est : {code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers. »
+  ```bash
+  npm run build
+  ```
 
-### 3. Vérification d’un OTP
+  4. Lancer en développement (reload automatique) :
 
-`POST /api/notifications/otp/verify`
+  ```bash
+  npm run dev
+  ```
 
-Body JSON :
+  ## Variables d'environnement
 
-```json
-{
-  "utilisateurId": "user-otp-1",
-  "code": "1234"
-}
-```
+  Les variables attendues par le service (fichier `.env` recommandé) :
+  - SERVICE_PORT: port d'écoute HTTP (ex: 8000)
+  - SERVICE_VERSION: version déployée (optionnel)
+  - COMMIT_SHA: sha du commit déployé (optionnel)
 
-Réponses possibles :
+  - PostgreSQL:
+    - DB_HOST
+    - DB_PORT (par défaut 5432)
+    - DB_USER
+    - DB_PASSWORD
+    - DB_NAME
 
-```json
-{ "success": true, "message": "OTP validé" }
-{ "success": false, "message": "Code invalide" }
-{ "success": false, "message": "Code expiré" }
-{ "success": false, "message": "Ce code a déjà été utilisé" }
-```
+  - RabbitMQ:
+    - RABBITMQ_URL (ex: amqp://user:pass@host:5672)
+    - RABBITMQ_EXCHANGE (nom de l'exchange partagé)
+    - RABBITMQ_QUEUE (nom de la queue principale pour ce service)
 
----
+  - Twilio (si SMS) :
+    - TWILIO_ACCOUNT_SID
+    - TWILIO_AUTH_TOKEN
+    - TWILIO_PHONE_NUMBER
 
-│ │ ├── Otp.ts # Modèle de données pour les OTP (code, expiration, utilisateur)
-│ │
-│ ├── routes/
-│ │ ├── notificationRoutes.ts # Définition des routes Express pour les notifications et OTP
-│ │
-│ ├── services/
-│ │ ├── notificationService.ts # Logique métier liée aux notifications
-│ │ ├── otpService.ts # Logique métier liée aux OTP
-│ │
-│ ├── utils/
-│ │ ├── mailService.ts # Gère l’envoi des e-mails (transporteur, configuration…)
-│ │ ├── messageTemplates.ts # Contient les templates des messages
-│ │
-│ ├── app.ts # Configuration principale de l’application Express
-│ ├── data-source.ts # Configuration et connexion à la base de données
-│ ├── index.ts # Point d’entrée pour la déclaration des routes
-│ ├── server.ts # Lancement du serveur Express
-│
-├── .env # Variables d’environnement (PORT, DB_URL, etc.)
-├── package.json # Dépendances et scripts du projet
-├── tsconfig.json # Configuration TypeScript
+  - E-mail (Nodemailer) :
+    - MAIL_USER
+    - MAIL_PASS
+
+  - Health / diagnostics (optionnel) :
+    - HEALTH_CHECK_TIMEOUT_MS (ms, défaut 1000)
+    - HEALTH_CACHE_TTL_MS (ms, défaut 5000)
+    - HEALTH_EXPOSE_ERRORS (true|false, défaut false)
+
+  ## Commandes utiles
+  - `npm run dev` — démarre avec `ts-node-dev` (dev hot-reload)
+  - `npm run build` — compile TypeScript vers `dist/`
+  - `npm start` — exécute `node src/server.ts` (production si compilé)
+
+  ## Endpoints et exemples
+
+  Base URL: `http://{host}:{SERVICE_PORT}`
+
+  Health
+  - `GET /health` — liveness minimal (retourne OK + uptime)
+  - `GET /health/ready` — readiness : vérifie PostgreSQL et RabbitMQ, retourne 200 ou 503. Réponse contient `components.db` et `components.rabbitmq`.
+
+  Notifications
+  - `POST /api/notifications/envoyer` — envoie une notification.
+    - Corps possible (exemples) :
+
+      Transfer (expéditeur + destinataire envoyés sur SMS + email si fournis) :
+
+      ```json
+      {
+        "type": "transfer",
+        "sender": { "email": "a@ex.com", "phone": "+223xxxxxxxx" },
+        "receiver": { "email": "b@ex.com", "phone": "+223yyyyyyyy" },
+        "amount": 10000,
+        "content": "Votre transfert de 10000 F CFA a été effectué"
+      }
+      ```
+
+      Simple notification :
+
+      ```json
+      {
+        "type": "alert_securite",
+        "user": { "email": "u@ex.com", "phone": "+223zzzzzzzz" },
+        "content": "Un événement important a eu lieu"
+      }
+      ```
+
+    - Réponse : `201` + objet décrivant les enregistrements créés (sms / email)
+
+  - `POST /api/notifications/rabbitmq` — endpoint de test qui publie un message sur RabbitMQ (routingKey/message dans body)
+
+  OTP
+  - `POST /api/notifications/otp/generate` — génère un OTP
+    - Body example:
+      ```json
+      {
+        "utilisateurId": "user-123",
+        "canalNotification": "SMS",
+        "phone": "+223..."
+      }
+      ```
+
+  - `POST /api/notifications/otp/verify` — vérifie un OTP
+    - Body example:
+      ```json
+      { "utilisateurId": "user-123", "code": "1234" }
+      ```
+
+  ## Health checks (détails)
+  - `/health` est une probe de liveness simple, utile pour Kubernetes readiness/liveness probes basiques.
+  - `/health/ready` exécute des vérifications actives :
+    - exécute `SELECT 1` sur PostgreSQL (avec timeout configurable)
+    - vérifie que le channel RabbitMQ est initialisé
+    - met en cache le résultat pendant `HEALTH_CACHE_TTL_MS` pour limiter la charge
+    - renvoie `version` et `commit` si disponibles
+
+  ## Docker / Compose
+
+  Le repo contient un `Dockerfile` et un `docker-compose.yml` :
+
+  Construction :
+
+  ```bash
+  docker build -t ricash/notification-service:latest .
+  ```
+
+  Compose (exemple très simple) :
+
+  ```yaml
+  version: "3.8"
+  services:
+    notification-service:
+      image: ricash/notification-service:latest
+      env_file: .env
+      ports:
+        - "8000:8000"
+      depends_on:
+        - db
+        - rabbitmq
+
+    db:
+      image: postgres:15
+      environment:
+        POSTGRES_USER: example
+        POSTGRES_PASSWORD: example
+        POSTGRES_DB: ricash
+
+    rabbitmq:
+      image: rabbitmq:3-management
+      ports:
+        - "5672:5672"
+        - "15672:15672"
+  ```
+
+  ## Débogage et logs
+  - Les logs sont écrits sur stdout.
+  - Vérifier les erreurs de connexion à RabbitMQ et PostgreSQL au démarrage.
+  - En cas d'erreurs d'envoi SMS/Email, les exceptions sont loggées et le statut de la notification est mis à `ECHEC`.
+
+  ## Sécurité et bonnes pratiques
+  - Ne pas exposer `HEALTH_EXPOSE_ERRORS=true` en production si les messages d'erreur contiennent des données sensibles.
+  - Utiliser des secrets manager pour les identifiants (DB, Twilio, MAIL_PASS).
+  - Désactiver `synchronize: true` (TypeORM) en production et utiliser des migrations contrôlées.
+
+  ## Contribution
+
+  Pour proposer des améliorations :
+  1. Créer une branche feature
+  2. Ajouter tests / valider localement
+  3. Ouvrir une Pull Request vers `develop`
+
+  ## Support
+
+  Si tu veux, je peux :
+  - ajouter des exemples Postman
+  - créer un `docker-compose.dev.yml` complet pour démarrer la stack locale
+  - ajouter des tests unitaires pour `NotificationService` / `OtpService`
+
+  ***
+
+  Fait avec ❤️ — Notification-Service

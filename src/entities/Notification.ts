@@ -1,4 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from "typeorm";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 
 export enum TypeNotification {
   CONFIRMATION_TRANSFERT = "CONFIRMATION_TRANSFERT",
@@ -33,6 +38,12 @@ export class Notification {
 
   @Column()
   utilisateurId!: string;
+
+  @Column({ nullable: true })
+  destinationEmail?: string;
+
+  @Column({ nullable: true })
+  destinationPhone?: string;
 
   @Column({ type: "enum", enum: TypeNotification })
   typeNotification!: TypeNotification;

@@ -1,13 +1,12 @@
-const express = require("express");
-import type { Request, Response } from "express";
+import express, { type Request, type Response } from "express";
 const router = express.Router();
 
 interface HealthResponse {
-    status: string;
+  status: string;
 }
 
 router.get("/health", (req: Request, res: Response<HealthResponse>) => {
-    res.status(200).json({ status: "OK" });
+  res.status(200).json({ status: "OK" });
 });
 
-module.exports = router;
+export default router;

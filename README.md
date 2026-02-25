@@ -3,125 +3,190 @@
 Ce projet implémente un **service de notifications** en **Node.js**, **Express** et **TypeScript**.  
 Il gère deux fonctionnalités principales :
 
--  La génération et la vérification d’OTP (codes à usage unique).  
--  L’envoi de notifications (par e-mail,SMS ou autres canaux).
-
+- La génération et la vérification d’OTP (codes à usage unique).
+- L’envoi de notifications (par e-mail,SMS ou autres canaux).
 
 ---
 
-##  Fonctionnalités principales
+## Fonctionnalités principales
 
-- Génération et validation d’OTP avec expiration automatique.  
-- Envoi de notifications personnalisées via des templates.  
+- Génération et validation d’OTP avec expiration automatique.
+- Envoi de notifications personnalisées via des templates.
 - Architecture modulaire : contrôleurs, services, entités, utilitaires.
 
 ---
-# Endpoints 
+
+# Endpoints
 
 Tous les endpoints sont accessibles sous :<br>
 /api/notifications
- 
- **Envoi d’une notification**  
- 
- Post /api/notifications/envoyer  
- 
- **Body json** <br>
-{<br>
-  "utilisateurId": "+22350087965",  <br>
-  "typeNotification": "CONFIRMATION_TRANSFERT",<br>
-  "canal": "SMS",<br>
-  "context": {<br>
-    "montant": 10000,<br>
-    "destinataire": "Aisha"<br>
-  }<br>
-}<br>
 
-**Réponse json**<br>
+## Fonctionnalités principales
 
-{<br>
-  "id": 42,<br>
-  "utilisateurId": "+22350087965",<br>
-  "typeNotification": "CONFIRMATION_TRANSFERT",<br>
-  "canal": "SMS",<br>
-  "message": "Votre transfert de 10000 F CFA à Aisha a été confirmé.",<br>
-  "statut": "ENVOYEE",<br>
-  "createdAt": "2025-12-02T20:10:00.000Z"<br>
-}<br>
-
-
-**Génération d'otp**<br>
-
-POST /api/notifications/otp/generate <br>
-
-**Body json**<br>
-
--Envoi par numéro de téléphone<br>
-{<br>
-  "utilisateurId": "+22350087965",<br>
-  "canalNotification": "SMS"<br>
-}<br>
--Envoi par email<br>
-{<br>
-  "utilisateurId": "youremail@gmail.com",<br>
-  "canalNotification": "EMAIL"<br>
-}<br>
-
-**Vérification d'un otp**<br>
-
-POST /api/notifications/otp/verify<br>
-**BODY JSON**<br>
-
-{
-  "utilisateurId": "+22350087965",<br>
-  "code": "1234"<br>
-}
-**Réponse**<br>
-{<br>
-  "success": true,<br>
-  "message": "OTP validé"<br>
-}
-
-**Autres réponses possibles**<br>
-
-{ "success": false, "message": "Code invalide" }<br>
-{ "success": false, "message": "Code expiré" }<br>
-{ "success": false, "message": "Ce code a déjà été utilisé" }<br>
+- Génération et validation d’OTP avec expiration automatique.
+- Envoi de notifications personnalisées via des templates.
+- Intégration RabbitMQ : consommation d’événements de `wallet-service` (dépôt, retrait, transfert, OTP…) et transformation en notifications.
+- Validation stricte des payloads HTTP avec **Zod** (emails et téléphones obligatoires, structure `transfer` dédiée, etc.).
 
 ---
-##  Structure du projet
 
+## Endpoints HTTP
 
-```bash
-notification-service/
+Tous les endpoints HTTP exposés par ce service sont préfixés par :
+
+- `/api/notifications`
+
+### 1. Envoi d’une notification (HTTP direct)
+
+`POST /api/notifications/envoyer`
+
+Depuis la refonte, le service est **strictement dépendant des coordonnées fournies dans le JSON**. Deux formes sont possibles :
+
+#### a) Notification de transfert
+
+```json
+{
+  "type": "transfer",
+  "sender": {
+    "email": "expediteur@mail.com",
+    "phone": "+22300000000"
+  },
+  "receiver": {
+    "email": "destinataire@mail.com",
+    "phone": "+22311111111"
+  },
+  "amount": 5000,
+  "content": "Transfert de 5000 FCFA réussi."
+}
+```
+
+- Le schéma Zod impose :
+  - `type` = `"transfer"`.
+  - `sender.email` / `sender.phone` obligatoires.
+  - `receiver.email` / `receiver.phone` obligatoires.
+  - `amount > 0`.
+  - `content` non vide.
+- Le service crée **deux paires de notifications** (SMS + EMAIL) :
+  - Pour l’expéditeur (role = `SENDER`).
+  - Pour le destinataire (role = `RECEIVER`).
+- Les messages sont envoyés :
+  - par SMS via Twilio sur `phone`.
+  - par email via `mailService.sendEmail` sur `email`.
+- Le `context` des entités `Notification` contient notamment `montant` et `role`.
+
+#### b) Notification simple (autres types)
+
+```json
+{
+  "type": "ALERT_SECURITE",
+  "user": {
+    "email": "client@mail.com",
+    "phone": "+22322222222"
+  },
+  "content": "Connexion suspecte détectée."
+}
+```
+
+- `type` peut être l’une des valeurs de `TypeNotification` (sauf `"transfer"` qui utilise le schéma dédié).
+- `user.email` et `user.phone` sont obligatoires.
+- Le service envoie systématiquement la notification **à la fois par SMS et par email**.
+
+En cas de JSON invalide (champ manquant / mauvais type), le contrôleur renvoie :
+
+```json
+{
+  "success": false,
+  "message": "Corps de requête invalide",
+  "errors": { ...détail Zod... }
+}
+```
+
+### 2. Génération d’OTP
+
+`POST /api/notifications/otp/generate`
+
+Le service génère un code OTP (4 chiffres), l’enregistre en base avec une expiration (5 minutes) puis publie un événement `otp.verification` sur RabbitMQ. Désormais, il dépend **strictement** des coordonnées envoyées dans le JSON.
+
+```json
+{
+  "utilisateurId": "user-otp-1",
+  "canalNotification": "SMS",
+  "email": "userotp@mail.com",
+  "phone": "+22300000000"
+}
+```
+
+- `utilisateurId`: identifiant métier (user id).
+- `canalNotification`: `"SMS"` ou `"EMAIL"`.
+- `email`: email du destinataire (obligatoire).
+- `phone`: numéro du destinataire (obligatoire).
+
+│ │ ├── Notification.ts # Modèle de données pour les notifications
+
+L’événement publié (contrat inter-services) contient :
+
+```json
+{
+  "utilisateurId": "user-otp-1",
+  "typeNotification": "VERIFICATION_TELEPHONE",
+  "canal": "SMS",
+  "context": { "code": "1234" },
+  "email": "userotp@mail.com",
+  "phone": "+22300000000",
+  "metadata": {
+    "service": "notification-service:otp",
+    "correlationId": "otp-<id>"
+  }
+}
+```
+
+Les templates de message utilisent ce `context` pour produire des textes explicites, par exemple :
+
+- `VERIFICATION_TELEPHONE` :
+  > « Votre code OTP de vérification téléphone est : {code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers. »
+
+### 3. Vérification d’un OTP
+
+`POST /api/notifications/otp/verify`
+
+Body JSON :
+
+```json
+{
+  "utilisateurId": "user-otp-1",
+  "code": "1234"
+}
+```
+
+Réponses possibles :
+
+```json
+{ "success": true, "message": "OTP validé" }
+{ "success": false, "message": "Code invalide" }
+{ "success": false, "message": "Code expiré" }
+{ "success": false, "message": "Ce code a déjà été utilisé" }
+```
+
+---
+
+│ │ ├── Otp.ts # Modèle de données pour les OTP (code, expiration, utilisateur)
+│ │
+│ ├── routes/
+│ │ ├── notificationRoutes.ts # Définition des routes Express pour les notifications et OTP
+│ │
+│ ├── services/
+│ │ ├── notificationService.ts # Logique métier liée aux notifications
+│ │ ├── otpService.ts # Logique métier liée aux OTP
+│ │
+│ ├── utils/
+│ │ ├── mailService.ts # Gère l’envoi des e-mails (transporteur, configuration…)
+│ │ ├── messageTemplates.ts # Contient les templates des messages
+│ │
+│ ├── app.ts # Configuration principale de l’application Express
+│ ├── data-source.ts # Configuration et connexion à la base de données
+│ ├── index.ts # Point d’entrée pour la déclaration des routes
+│ ├── server.ts # Lancement du serveur Express
 │
-├── src/
-│   ├── controllers/
-│   │   ├── notificationController.ts     # Gère les requêtes liées à l’envoi de notifications
-│   │   ├── otpController.ts              # Gère la génération et la vérification des OTP
-│   │
-│   ├── entities/
-│   │   ├── Notification.ts               # Modèle de données pour les notifications
-│   │   ├── Otp.ts                        # Modèle de données pour les OTP (code, expiration, utilisateur)
-│   │
-│   ├── routes/
-│   │   ├── notificationRoutes.ts         # Définition des routes Express pour les notifications et OTP
-│   │
-│   ├── services/
-│   │   ├── notificationService.ts        # Logique métier liée aux notifications
-│   │   ├── otpService.ts                 # Logique métier liée aux OTP
-│   │
-│   ├── utils/
-│   │   ├── mailService.ts                # Gère l’envoi des e-mails (transporteur, configuration…)
-│   │   ├── messageTemplates.ts           # Contient les templates des messages
-│   │
-│   ├── app.ts                            # Configuration principale de l’application Express
-│   ├── data-source.ts                    # Configuration et connexion à la base de données
-│   ├── index.ts                          # Point d’entrée pour la déclaration des routes
-│   ├── server.ts                         # Lancement du serveur Express
-│
-├── .env                                  # Variables d’environnement (PORT, DB_URL, etc.)
-├── package.json                          # Dépendances et scripts du projet
-├── tsconfig.json                         # Configuration TypeScript
-
-
-
+├── .env # Variables d’environnement (PORT, DB_URL, etc.)
+├── package.json # Dépendances et scripts du projet
+├── tsconfig.json # Configuration TypeScript

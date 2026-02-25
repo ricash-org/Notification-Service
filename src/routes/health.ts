@@ -133,5 +133,4 @@ router.get(
     res.status(code).json(result);
   },
 );
-
 export default router;

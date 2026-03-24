@@ -1,14 +1,8 @@
+import { TypeNotification } from "../../entities/Notification";
+
 export interface InterServices {
   utilisateurId: string;
-  typeNotification:
-    | "CONFIRMATION_TRANSFERT"
-    | "RETRAIT_REUSSI"
-    | "DEPOT_REUSSI"
-    | "ALERT_SECURITE"
-    | "CONFIRMATION_DEPOT"
-    | "VERIFICATION_EMAIL"
-    | "VERIFICATION_TELEPHONE"
-    | "VERIFICATION_KYC";
+  typeNotification: TypeNotification;
 
   canal: "SMS" | "EMAIL" | "PUSH";
   /**

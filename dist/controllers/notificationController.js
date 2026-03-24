@@ -10,6 +10,10 @@ const ContactSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     phone: zod_1.z.string().min(8),
 });
+const AlertContactSchema = zod_1.z.object({
+    phone: zod_1.z.string().min(8),
+    email: zod_1.z.string().email().optional(),
+});
 const TransferNotificationSchema = zod_1.z.object({
     type: zod_1.z.literal("transfer"),
     sender: ContactSchema,
@@ -17,18 +21,26 @@ const TransferNotificationSchema = zod_1.z.object({
     amount: zod_1.z.number().positive(),
     content: zod_1.z.string().min(1),
 });
+const AlertNotificationSchema = zod_1.z.object({
+    type: zod_1.z.enum(["alert_securite", "ALERT_SECURITE"]),
+    user: AlertContactSchema,
+    content: zod_1.z.string().min(1),
+});
 const SimpleNotificationSchema = zod_1.z.object({
     type: zod_1.z
         .string()
         .min(1)
-        .refine((value) => value !== "transfer", {
-        message: 'Utiliser le schéma "transfer" lorsque type = "transfer".',
+        .refine((value) => value !== "transfer" &&
+        value !== "alert_securite" &&
+        value !== "ALERT_SECURITE", {
+        message: 'Utiliser le schéma "transfer" ou "alert_securite" selon le type.',
     }),
     user: ContactSchema,
     content: zod_1.z.string().min(1),
 });
 const NotificationBodySchema = zod_1.z.union([
     TransferNotificationSchema,
+    AlertNotificationSchema,
     SimpleNotificationSchema,
 ]);
 const envoyerNotification = async (req, res) => {

@@ -6,9 +6,7 @@ import { OtpService } from "../services/otpService";
 const otpService = new OtpService();
 
 const GenerateOtpSchema = z.object({
-  utilisateurId: z.string().min(1),
-  canalNotification: z.enum(["SMS", "EMAIL"]),
-  email: z.string().email(),
+  utilisateurId: z.string().min(1).optional(),
   phone: z.string().min(8),
 });
 
@@ -24,17 +22,12 @@ export const generateOtp = async (req: Request, res: Response) => {
       });
     }
 
-    const { utilisateurId, canalNotification, email, phone } = parsed.data;
-
-    const canalEnum =
-      canalNotification === "SMS"
-        ? CanalNotification.SMS
-        : CanalNotification.EMAIL;
+    const { phone } = parsed.data;
+    const utilisateurId = parsed.data.utilisateurId ?? phone;
 
     const result = await otpService.createOtp(
       utilisateurId,
-      canalEnum,
-      email,
+      CanalNotification.SMS,
       phone,
     );
     res.json(result);

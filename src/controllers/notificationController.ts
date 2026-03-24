@@ -10,6 +10,11 @@ const ContactSchema = z.object({
   phone: z.string().min(8),
 });
 
+const AlertContactSchema = z.object({
+  phone: z.string().min(8),
+  email: z.string().email().optional(),
+});
+
 const TransferNotificationSchema = z.object({
   type: z.literal("transfer"),
   sender: ContactSchema,
@@ -18,19 +23,33 @@ const TransferNotificationSchema = z.object({
   content: z.string().min(1),
 });
 
+const AlertNotificationSchema = z.object({
+  type: z.enum(["alert_securite", "ALERT_SECURITE"]),
+  user: AlertContactSchema,
+  content: z.string().min(1),
+});
+
 const SimpleNotificationSchema = z.object({
   type: z
     .string()
     .min(1)
-    .refine((value) => value !== "transfer", {
-      message: 'Utiliser le schéma "transfer" lorsque type = "transfer".',
-    }),
+    .refine(
+      (value) =>
+        value !== "transfer" &&
+        value !== "alert_securite" &&
+        value !== "ALERT_SECURITE",
+      {
+        message:
+          'Utiliser le schéma "transfer" ou "alert_securite" selon le type.',
+      },
+    ),
   user: ContactSchema,
   content: z.string().min(1),
 });
 
 const NotificationBodySchema = z.union([
   TransferNotificationSchema,
+  AlertNotificationSchema,
   SimpleNotificationSchema,
 ]);
 

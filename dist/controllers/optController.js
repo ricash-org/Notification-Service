@@ -6,9 +6,7 @@ const Notification_1 = require("../entities/Notification");
 const otpService_1 = require("../services/otpService");
 const otpService = new otpService_1.OtpService();
 const GenerateOtpSchema = zod_1.z.object({
-    utilisateurId: zod_1.z.string().min(1),
-    canalNotification: zod_1.z.enum(["SMS", "EMAIL"]),
-    email: zod_1.z.string().email(),
+    utilisateurId: zod_1.z.string().min(1).optional(),
     phone: zod_1.z.string().min(8),
 });
 const generateOtp = async (req, res) => {
@@ -21,11 +19,9 @@ const generateOtp = async (req, res) => {
                 errors: parsed.error.flatten(),
             });
         }
-        const { utilisateurId, canalNotification, email, phone } = parsed.data;
-        const canalEnum = canalNotification === "SMS"
-            ? Notification_1.CanalNotification.SMS
-            : Notification_1.CanalNotification.EMAIL;
-        const result = await otpService.createOtp(utilisateurId, canalEnum, email, phone);
+        const { phone } = parsed.data;
+        const utilisateurId = parsed.data.utilisateurId ?? phone;
+        const result = await otpService.createOtp(utilisateurId, Notification_1.CanalNotification.SMS, phone);
         res.json(result);
     }
     catch (error) {

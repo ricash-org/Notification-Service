@@ -81,6 +81,12 @@ export class NotificationService {
   // }
 
   private mapStringToTypeNotification(type: string): TypeNotification {
+    const normalized = type.trim().toUpperCase();
+
+    if ((Object.values(TypeNotification) as string[]).includes(normalized)) {
+      return normalized as TypeNotification;
+    }
+
     switch (type) {
       case "transfer":
         return TypeNotification.CONFIRMATION_TRANSFERT;
@@ -270,7 +276,10 @@ export class NotificationService {
       };
     }
 
-    if (payload.type === "alert_securite" || payload.type === "ALERT_SECURITE") {
+    if (
+      payload.type === "alert_securite" ||
+      payload.type === "ALERT_SECURITE"
+    ) {
       const alertPayload = payload as AlertNotificationDTO;
       const type = this.mapStringToTypeNotification(alertPayload.type);
 

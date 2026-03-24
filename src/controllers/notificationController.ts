@@ -33,9 +33,16 @@ const SimpleNotificationSchema = z.object({
   type: z
     .string()
     .min(1)
-    .refine((value) => value !== "transfer" && value !== "alert_securite" && value !== "ALERT_SECURITE", {
-      message: 'Utiliser le schéma "transfer" ou "alert_securite" selon le type.',
-    }),
+    .refine(
+      (value) =>
+        value !== "transfer" &&
+        value !== "alert_securite" &&
+        value !== "ALERT_SECURITE",
+      {
+        message:
+          'Utiliser le schéma "transfer" ou "alert_securite" selon le type.',
+      },
+    ),
   user: ContactSchema,
   content: z.string().min(1),
 });

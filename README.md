@@ -1,295 +1,390 @@
 # Notification-Service
 
-Ce projet implémente un **service de notifications** en **Node.js**, **Express** et **TypeScript**.  
-Il gère deux fonctionnalités principales :
+Service de notifications (SMS, email, OTP) base sur Node.js, Express, TypeScript, PostgreSQL, RabbitMQ.
 
-- La génération et la vérification d’OTP (codes à usage unique).
-- L’envoi de notifications (par e-mail,SMS ou autres canaux).
+## Vue d'ensemble
 
----
+Ce service expose des endpoints HTTP et consomme des evenements RabbitMQ pour envoyer des notifications.
 
-## Fonctionnalités principales
+Comportement cle actuel:
 
-- Génération et validation d’OTP avec expiration automatique.
-- Envoi de notifications personnalisées via des templates.
-- Architecture modulaire : contrôleurs, services, entités, utilitaires.
+- OTP generation: telephone only, canal SMS.
+- Alertes securite: SMS prioritaire, email secondaire si disponible.
+- Les types de notification sont centralises dans `TypeNotification`.
 
----
+## Prerequis
 
-# Endpoints
+- Node.js >= 18
+- npm
+- PostgreSQL
+- RabbitMQ
+- Compte Twilio (SMS)
+- Compte SMTP/Gmail (email)
 
-Tous les endpoints sont accessibles sous :<br>
-/api/notifications
+## Installation
 
-## Fonctionnalités principales
+```bash
+cd notification_service
+npm install
+npm run build
+npm run dev
+```
 
-- Génération et validation d’OTP avec expiration automatique.
-- Envoi de notifications personnalisées via des templates.
-- Intégration RabbitMQ : consommation d’événements de `wallet-service` (dépôt, retrait, transfert, OTP…) et transformation en notifications.
-- Validation stricte des payloads HTTP avec **Zod** (emails et téléphones obligatoires, structure `transfer` dédiée, etc.).
+## Variables d'environnement
 
----
+### API
 
-## Endpoints HTTP
+- SERVICE_PORT (ex: 8000)
+- SERVICE_VERSION (optionnel)
+- COMMIT_SHA (optionnel)
 
-Tous les endpoints HTTP exposés par ce service sont préfixés par :
+### PostgreSQL
 
-- `/api/notifications`
+- DB_HOST
+- DB_PORT (defaut 5432)
+- DB_USER
+- DB_PASSWORD
+- DB_NAME
 
-### 1. Envoi d’une notification (HTTP direct)
+### RabbitMQ
 
-`POST /api/notifications/envoyer`
+- RABBITMQ_URL
+- RABBITMQ_EXCHANGE
+- RABBITMQ_QUEUE
 
-Depuis la refonte, le service est **strictement dépendant des coordonnées fournies dans le JSON**. Deux formes sont possibles :
+### SMS (Twilio)
 
-#### a) Notification de transfert
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_PHONE_NUMBER
+
+### Email
+
+- MAIL_USER
+- MAIL_PASS
+
+### Health
+
+- HEALTH_CHECK_TIMEOUT_MS (defaut 1000)
+- HEALTH_CACHE_TTL_MS (defaut 5000)
+- HEALTH_EXPOSE_ERRORS (defaut false)
+
+## Commandes
+
+```bash
+npm run dev
+npm run build
+npm start
+```
+
+## Base URL
+
+```text
+http://{host}:{SERVICE_PORT}
+```
+
+## Endpoints
+
+### 1) Health liveness
+
+- Methode: GET
+- Route: /health
+
+Reponse exemple:
+
+```json
+{
+  "status": "OK",
+  "uptime": 123.45
+}
+```
+
+### 2) Health readiness
+
+- Methode: GET
+- Route: /health/ready
+
+Reponse exemple:
+
+```json
+{
+  "status": "OK",
+  "uptime": 123.45,
+  "timestamp": "2026-03-24T10:00:00.000Z",
+  "version": "1.0.0",
+  "commit": "abc123",
+  "components": {
+    "db": { "status": "OK" },
+    "rabbitmq": { "status": "OK" }
+  }
+}
+```
+
+### 3) Envoi notification HTTP directe
+
+- Methode: POST
+- Route: /api/notifications/envoyer
+
+#### Cas A: transfer (sender/receiver avec email + phone obligatoires)
 
 ```json
 {
   "type": "transfer",
   "sender": {
-    "email": "expediteur@mail.com",
-    "phone": "+22300000000"
+    "email": "sender@example.com",
+    "phone": "+22370000001"
   },
   "receiver": {
-    "email": "destinataire@mail.com",
-    "phone": "+22311111111"
+    "email": "receiver@example.com",
+    "phone": "+22370000002"
   },
   "amount": 5000,
-  "content": "Transfert de 5000 FCFA réussi."
+  "content": "Transfert de 5000 FCFA effectue"
 }
 ```
 
-- Le schéma Zod impose :
-  - `type` = `"transfer"`.
-  - `sender.email` / `sender.phone` obligatoires.
+#### Cas B: alert_securite (SMS prioritaire, email optionnel)
 
-  # Notification-Service
+```json
+{
+  "type": "alert_securite",
+  "user": {
+    "phone": "+22370000003",
+    "email": "client@example.com"
+  },
+  "content": "Tentative de connexion suspecte detectee"
+}
+```
 
-  Service de notifications (e-mail & SMS & OTP) développé en Node.js, Express et TypeScript.
+#### Cas C: autre type simple (schema standard)
 
-  Ce README décrit l'installation, la configuration, les endpoints, les variables d'environnement et les bonnes pratiques pour déployer et tester le service.
+Note: pour les types simples hors transfer et alert_securite, `user.email` et `user.phone` sont attendus.
 
-  Table des matières
-  - Présentation
-  - Prérequis
-  - Installation
-  - Variables d'environnement
-  - Commandes utiles
-  - Endpoints et exemples
-  - Health checks
-  - Docker / Compose
-  - Débogage et logs
-  - Notes de sécurité
+```json
+{
+  "type": "CLIENT_COMPTE_ACTIF",
+  "user": {
+    "email": "client@example.com",
+    "phone": "+22370000004"
+  },
+  "content": "Votre compte est desormais actif"
+}
+```
 
-  ***
+### 4) Liste des notifications
 
-  ## Présentation
+- Methode: GET
+- Route: /api/notifications
 
-  Ce service reçoit des requêtes HTTP pour envoyer des notifications et générer/vérifier des OTP. Il s'intègre avec :
-  - PostgreSQL (TypeORM)
-  - RabbitMQ (échange partagé, queue privée)
-  - Twilio (SMS)
-  - Nodemailer (e-mail)
+Reponse exemple:
 
-  Le code organise les responsabilités en contrôleurs, services, entités, utilitaires et messaging (publisher/consumer).
+```json
+[
+  {
+    "id": "0f4c...",
+    "utilisateurId": "user-123",
+    "typeNotification": "ALERT_SECURITE",
+    "canal": "SMS",
+    "message": "Alerte securite...",
+    "statut": "ENVOYEE",
+    "dateEnvoi": "2026-03-24T10:00:00.000Z"
+  }
+]
+```
 
-  ## Prérequis
-  - Node.js >= 18
-  - npm
-  - PostgreSQL accessible (ou instance locale)
-  - RabbitMQ accessible (ou instance locale)
-  - Compte Twilio (si SMS en production) ou configuration de mock
-  - Compte e-mail (Gmail ou SMTP compatible) pour envoi d'e-mails
+### 5) Publication test RabbitMQ
 
-  ## Installation
-  1. Cloner le dépôt et positionnez-vous dans le dossier du service :
+- Methode: POST
+- Route: /api/notifications/rabbitmq
 
-  ```bash
-  cd notification_service
-  ```
+Request exemple:
 
-  2. Installer les dépendances :
+```json
+{
+  "routingKey": "notification.process",
+  "message": {
+    "utilisateurId": "user-123",
+    "typeNotification": "ALERT_SECURITE",
+    "canal": "SMS",
+    "phone": "+22370000005"
+  }
+}
+```
 
-  ```bash
-  npm install
-  ```
+Reponse exemple:
 
-  3. Compiler TypeScript :
+```json
+{
+  "success": true
+}
+```
 
-  ```bash
-  npm run build
-  ```
+### 6) OTP generate
 
-  4. Lancer en développement (reload automatique) :
+- Methode: POST
+- Route: /api/notifications/otp/generate
+- Regle actuelle: telephone only, SMS only.
 
-  ```bash
-  npm run dev
-  ```
+Request exemple minimal:
 
-  ## Variables d'environnement
+```json
+{
+  "phone": "+22370000006"
+}
+```
 
-  Les variables attendues par le service (fichier `.env` recommandé) :
-  - SERVICE_PORT: port d'écoute HTTP (ex: 8000)
-  - SERVICE_VERSION: version déployée (optionnel)
-  - COMMIT_SHA: sha du commit déployé (optionnel)
+Request exemple avec utilisateurId:
 
-  - PostgreSQL:
-    - DB_HOST
-    - DB_PORT (par défaut 5432)
-    - DB_USER
-    - DB_PASSWORD
-    - DB_NAME
+```json
+{
+  "utilisateurId": "pre-user-001",
+  "phone": "+22370000006"
+}
+```
 
-  - RabbitMQ:
-    - RABBITMQ_URL (ex: amqp://user:pass@host:5672)
-    - RABBITMQ_EXCHANGE (nom de l'exchange partagé)
-    - RABBITMQ_QUEUE (nom de la queue principale pour ce service)
+Reponse exemple:
 
-  - Twilio (si SMS) :
-    - TWILIO_ACCOUNT_SID
-    - TWILIO_AUTH_TOKEN
-    - TWILIO_PHONE_NUMBER
+```json
+{
+  "success": true,
+  "message": "OTP envoye",
+  "expiration": "2026-03-24T10:05:00.000Z"
+}
+```
 
-  - E-mail (Nodemailer) :
-    - MAIL_USER
-    - MAIL_PASS
+### 7) OTP verify
 
-  - Health / diagnostics (optionnel) :
-    - HEALTH_CHECK_TIMEOUT_MS (ms, défaut 1000)
-    - HEALTH_CACHE_TTL_MS (ms, défaut 5000)
-    - HEALTH_EXPOSE_ERRORS (true|false, défaut false)
+- Methode: POST
+- Route: /api/notifications/otp/verify
 
-  ## Commandes utiles
-  - `npm run dev` — démarre avec `ts-node-dev` (dev hot-reload)
-  - `npm run build` — compile TypeScript vers `dist/`
-  - `npm start` — exécute `node src/server.ts` (production si compilé)
+Request exemple:
 
-  ## Endpoints et exemples
+```json
+{
+  "utilisateurId": "pre-user-001",
+  "code": "1234"
+}
+```
 
-  Base URL: `http://{host}:{SERVICE_PORT}`
+Reponse exemple:
 
-  Health
-  - `GET /health` — liveness minimal (retourne OK + uptime)
-  - `GET /health/ready` — readiness : vérifie PostgreSQL et RabbitMQ, retourne 200 ou 503. Réponse contient `components.db` et `components.rabbitmq`.
+```json
+{
+  "success": true,
+  "message": "OTP valide"
+}
+```
 
-  Notifications
-  - `POST /api/notifications/envoyer` — envoie une notification.
-    - Corps possible (exemples) :
+## RabbitMQ inter-services
 
-      Transfer (expéditeur + destinataire envoyés sur SMS + email si fournis) :
+Message type attendu pour notification inter-service:
 
-      ```json
-      {
-        "type": "transfer",
-        "sender": { "email": "a@ex.com", "phone": "+223xxxxxxxx" },
-        "receiver": { "email": "b@ex.com", "phone": "+223yyyyyyyy" },
-        "amount": 10000,
-        "content": "Votre transfert de 10000 F CFA a été effectué"
-      }
-      ```
+```json
+{
+  "utilisateurId": "user-123",
+  "typeNotification": "ALERT_SECURITE",
+  "canal": "SMS",
+  "email": "client@example.com",
+  "phone": "+22370000007",
+  "context": {
+    "reason": "multiple_failed_pin_attempts"
+  },
+  "metadata": {
+    "service": "wallet-service",
+    "correlationId": "evt-123"
+  }
+}
+```
 
-      Simple notification :
+Regle importante:
 
-      ```json
-      {
-        "type": "alert_securite",
-        "user": { "email": "u@ex.com", "phone": "+223zzzzzzzz" },
-        "content": "Un événement important a eu lieu"
-      }
-      ```
+- Pour `ALERT_SECURITE`, le service applique une priorite SMS quand un numero est present, puis envoi email si adresse disponible.
 
-    - Réponse : `201` + objet décrivant les enregistrements créés (sms / email)
+## Types de notification disponibles
 
-  - `POST /api/notifications/rabbitmq` — endpoint de test qui publie un message sur RabbitMQ (routingKey/message dans body)
+### 1. Gestion admin
 
-  OTP
-  - `POST /api/notifications/otp/generate` — génère un OTP
-    - Body example:
-      ```json
-      {
-        "utilisateurId": "user-123",
-        "canalNotification": "SMS",
-        "phone": "+223..."
-      }
-      ```
+- ADMIN_CREE
+- ADMIN_MIS_A_JOUR
+- ADMIN_SUPPRIME
 
-  - `POST /api/notifications/otp/verify` — vérifie un OTP
-    - Body example:
-      ```json
-      { "utilisateurId": "user-123", "code": "1234" }
-      ```
+### 2. Agent
 
-  ## Health checks (détails)
-  - `/health` est une probe de liveness simple, utile pour Kubernetes readiness/liveness probes basiques.
-  - `/health/ready` exécute des vérifications actives :
-    - exécute `SELECT 1` sur PostgreSQL (avec timeout configurable)
-    - vérifie que le channel RabbitMQ est initialisé
-    - met en cache le résultat pendant `HEALTH_CACHE_TTL_MS` pour limiter la charge
-    - renvoie `version` et `commit` si disponibles
+- AGENT_INSCRIPTION
+- AGENT_EN_ATTENTE_VALIDATION
+- AGENT_VALIDE
+- AGENT_REJETE
 
-  ## Docker / Compose
+### 3. Client
 
-  Le repo contient un `Dockerfile` et un `docker-compose.yml` :
+- CLIENT_INSCRIPTION
+- CLIENT_COMPTE_ACTIF
 
-  Construction :
+### 4. Authentification et securite
 
-  ```bash
-  docker build -t ricash/notification-service:latest .
-  ```
+- CONNEXION_REUSSIE
+- ECHEC_CONNEXION
+- DECONNEXION
+- NOUVEL_APPAREIL
+- CHANGEMENT_MOT_DE_PASSE
+- CHANGEMENT_EMAIL
+- CHANGEMENT_TELEPHONE
+- COMPTE_BLOQUE
+- COMPTE_DEBLOQUE
+- ALERT_SECURITE
 
-  Compose (exemple très simple) :
+### 5. Transactions
 
-  ```yaml
-  version: "3.8"
-  services:
-    notification-service:
-      image: ricash/notification-service:latest
-      env_file: .env
-      ports:
-        - "8000:8000"
-      depends_on:
-        - db
-        - rabbitmq
+- CONFIRMATION_TRANSFERT
+- CONFIRMATION_DEPOT
+- CONFIRMATION_RETRAIT
+- TRANSFERT_ENVOYE
+- TRANSFERT_RECU
+- ECHEC_TRANSFERT
+- DEPOT_EN_COURS
+- DEPOT_REUSSI
+- ECHEC_DEPOT
+- RETRAIT_EN_COURS
+- RETRAIT_REUSSI
+- ECHEC_RETRAIT
 
-    db:
-      image: postgres:15
-      environment:
-        POSTGRES_USER: example
-        POSTGRES_PASSWORD: example
-        POSTGRES_DB: ricash
+### 6. OTP et verification
 
-    rabbitmq:
-      image: rabbitmq:3-management
-      ports:
-        - "5672:5672"
-        - "15672:15672"
-  ```
+- OTP_ENVOYE
+- OTP_VALIDE
+- OTP_EXPIRE
+- OTP_INVALIDE
+- VERIFICATION_EMAIL
+- VERIFICATION_TELEPHONE
 
-  ## Débogage et logs
-  - Les logs sont écrits sur stdout.
-  - Vérifier les erreurs de connexion à RabbitMQ et PostgreSQL au démarrage.
-  - En cas d'erreurs d'envoi SMS/Email, les exceptions sont loggées et le statut de la notification est mis à `ECHEC`.
+### 7. KYC
 
-  ## Sécurité et bonnes pratiques
-  - Ne pas exposer `HEALTH_EXPOSE_ERRORS=true` en production si les messages d'erreur contiennent des données sensibles.
-  - Utiliser des secrets manager pour les identifiants (DB, Twilio, MAIL_PASS).
-  - Désactiver `synchronize: true` (TypeORM) en production et utiliser des migrations contrôlées.
+- KYC_EN_COURS
+- KYC_VALIDE
+- KYC_REJETE
+- VERIFICATION_KYC
 
-  ## Contribution
+### 8. Paiement
 
-  Pour proposer des améliorations :
-  1. Créer une branche feature
-  2. Ajouter tests / valider localement
-  3. Ouvrir une Pull Request vers `develop`
+- PAIEMENT_REUSSI
+- PAIEMENT_ECHOUE
+- FACTURE_GENEREE
+- FACTURE_PAYEE
 
-  ## Support
+### 9. Fraude et alertes
 
-  Si tu veux, je peux :
-  - ajouter des exemples Postman
-  - créer un `docker-compose.dev.yml` complet pour démarrer la stack locale
-  - ajouter des tests unitaires pour `NotificationService` / `OtpService`
+- TENTATIVE_FRAUDE
+- TRANSACTION_SUSPECTE
+- ACTIVITE_INHABITUELLE
 
-  ***
+### 10. Systeme
 
-  Fait avec ❤️ — Notification-Service
+- MAINTENANCE
+- MISE_A_JOUR_SYSTEME
+- ANNONCE
+
+## Notes d'exploitation
+
+- En cas d'erreur SMS/email, le statut est marque ECHEC.
+- Pour la production, preferer des migrations TypeORM controlees plutot que synchronize.
+- Eviter d'exposer les erreurs internes du health endpoint en production.

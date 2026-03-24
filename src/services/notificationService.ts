@@ -23,6 +23,11 @@ export interface ContactInfoDTO {
   phone: string;
 }
 
+export interface AlertContactInfoDTO {
+  phone: string;
+  email?: string;
+}
+
 export interface TransferNotificationDTO {
   type: "transfer";
   sender: ContactInfoDTO;
@@ -37,8 +42,15 @@ export interface SimpleNotificationDTO {
   content: string;
 }
 
+export interface AlertNotificationDTO {
+  type: "alert_securite" | "ALERT_SECURITE";
+  user: AlertContactInfoDTO;
+  content: string;
+}
+
 export type HttpNotificationDTO =
   | TransferNotificationDTO
+  | AlertNotificationDTO
   | SimpleNotificationDTO;
 
 export class NotificationService {
@@ -160,6 +172,72 @@ export class NotificationService {
     };
   }
 
+  private async sendSmsPriorityToContact(
+    contact: AlertContactInfoDTO,
+    content: string,
+    type: TypeNotification,
+    role: string,
+    extraContext?: Record<string, any>,
+  ) {
+    const context = { ...(extraContext || {}), role };
+
+    const notifSms = this.notifRepo.create({
+      utilisateurId: contact.phone,
+      typeNotification: type,
+      canal: CanalNotification.SMS,
+      context,
+      message: content,
+      destinationPhone: contact.phone,
+      statut: StatutNotification.EN_COURS,
+    });
+
+    await this.notifRepo.save(notifSms);
+
+    try {
+      await client.messages.create({
+        body: content,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: contact.phone,
+      });
+      notifSms.statut = StatutNotification.ENVOYEE;
+    } catch (error) {
+      notifSms.statut = StatutNotification.ECHEC;
+      console.error("Erreur d'envoi SMS :", error);
+    }
+
+    await this.notifRepo.save(notifSms);
+
+    let notifEmail: Notification | undefined;
+    if (contact.email) {
+      notifEmail = this.notifRepo.create({
+        utilisateurId: contact.email,
+        typeNotification: type,
+        canal: CanalNotification.EMAIL,
+        context,
+        message: content,
+        destinationEmail: contact.email,
+        statut: StatutNotification.EN_COURS,
+      });
+
+      await this.notifRepo.save(notifEmail);
+
+      try {
+        await sendEmail(contact.email, "Notification", content);
+        notifEmail.statut = StatutNotification.ENVOYEE;
+      } catch (error) {
+        notifEmail.statut = StatutNotification.ECHEC;
+        console.error("Erreur d'envoi email :", error);
+      }
+
+      await this.notifRepo.save(notifEmail);
+    }
+
+    return {
+      sms: notifSms,
+      ...(notifEmail ? { email: notifEmail } : {}),
+    };
+  }
+
   /**
    * Endpoint HTTP (Postman) :
    *  - dépend UNIQUEMENT des coordonnées fournies dans le JSON
@@ -189,6 +267,22 @@ export class NotificationService {
       return {
         sender: senderResult,
         receiver: receiverResult,
+      };
+    }
+
+    if (payload.type === "alert_securite" || payload.type === "ALERT_SECURITE") {
+      const alertPayload = payload as AlertNotificationDTO;
+      const type = this.mapStringToTypeNotification(alertPayload.type);
+
+      const userResult = await this.sendSmsPriorityToContact(
+        alertPayload.user,
+        alertPayload.content,
+        type,
+        "USER",
+      );
+
+      return {
+        user: userResult,
       };
     }
 
@@ -240,6 +334,69 @@ export class NotificationService {
       throw new Error(
         `Aucun contact (email ou téléphone) disponible pour l'utilisateur ${data.utilisateurId}`,
       );
+    }
+
+    // Priorité SMS pour les alertes sécurité: SMS d'abord si numéro disponible,
+    // puis email en second canal si disponible.
+    if (data.typeNotification === TypeNotification.ALERT_SECURITE) {
+      const context = data.context;
+      let smsNotif: Notification | undefined;
+      let emailNotif: Notification | undefined;
+
+      if (destinationPhone) {
+        smsNotif = this.notifRepo.create({
+          utilisateurId: data.utilisateurId,
+          typeNotification: data.typeNotification,
+          canal: CanalNotification.SMS,
+          context,
+          message,
+          destinationPhone,
+          statut: StatutNotification.EN_COURS,
+        });
+        await this.notifRepo.save(smsNotif);
+
+        try {
+          await client.messages.create({
+            body: message,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: destinationPhone,
+          });
+          smsNotif.statut = StatutNotification.ENVOYEE;
+        } catch (error) {
+          smsNotif.statut = StatutNotification.ECHEC;
+          console.error("Erreur d'envoi SMS :", error);
+        }
+
+        await this.notifRepo.save(smsNotif);
+      }
+
+      if (destinationEmail) {
+        emailNotif = this.notifRepo.create({
+          utilisateurId: data.utilisateurId,
+          typeNotification: data.typeNotification,
+          canal: CanalNotification.EMAIL,
+          context,
+          message,
+          destinationEmail,
+          statut: StatutNotification.EN_COURS,
+        });
+        await this.notifRepo.save(emailNotif);
+
+        try {
+          await sendEmail(destinationEmail, "RICASH NOTIFICATION", message);
+          emailNotif.statut = StatutNotification.ENVOYEE;
+        } catch (error) {
+          emailNotif.statut = StatutNotification.ECHEC;
+          console.error("Erreur d'envoi email :", error);
+        }
+
+        await this.notifRepo.save(emailNotif);
+      }
+
+      return {
+        ...(smsNotif ? { sms: smsNotif } : {}),
+        ...(emailNotif ? { email: emailNotif } : {}),
+      };
     }
 
     // 4. Validation spécifique au canal demandé

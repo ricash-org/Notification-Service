@@ -15,30 +15,23 @@ export class OtpService {
 
   async createOtp(
     utilisateurId: string,
-    canalNotification: CanalNotification.EMAIL | CanalNotification.SMS,
-    email: string,
+    canalNotification: CanalNotification.SMS,
     phone: string,
   ) {
     const code = this.generateCode();
     const expiration = new Date(Date.now() + this.expirationDelay);
-    const destinationEmail: string = email;
-    const destinationPhone: string = phone;
+    const destinationPhone = phone;
 
     const otp = this.otpRepo.create({
       utilisateurId, // identifiant métier
       canal: canalNotification,
       code,
       expiration,
-      destinationEmail,
       destinationPhone,
     });
     await this.otpRepo.save(otp);
 
-    //  Détermination automatique du type de notification
-    const notifType =
-      canalNotification === "EMAIL"
-        ? TypeNotification.VERIFICATION_EMAIL
-        : TypeNotification.VERIFICATION_TELEPHONE;
+    const notifType = TypeNotification.VERIFICATION_TELEPHONE;
 
     // message standard inter-services (aligné sur InterServices / NotificationEvent)
     const message: InterServices = {
@@ -46,7 +39,6 @@ export class OtpService {
       typeNotification: notifType,
       canal: canalNotification,
       context: { code },
-      email: destinationEmail,
       phone: destinationPhone,
       metadata: {
         service: "notification-service:otp",

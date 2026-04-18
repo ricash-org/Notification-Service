@@ -1,23 +1,16 @@
 name: Ricash CI - Build & Push Docker Image
 
 on:
-  pull_request:
-    branches: [ develop ]
   push:
-    branches: [ develop, main ]
+    branches: [main]
 
 permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ricash-org/notification-service
-
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,24 +23,11 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.CR_PAT }}
 
-      # ---------- PR BUILD (NO PUSH) ----------
-      - name: Build Docker image (PR)
-        if: github.event_name == 'pull_request'
-        run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:pr-${{ github.event.pull_request.number }} .
-
-      # ---------- DEVELOP ----------
-      - name: Build & Push (develop)
-        if: github.ref == 'refs/heads/develop'
-        run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:dev .
-          docker push $REGISTRY/$IMAGE_NAME:dev
-
-      # ---------- MAIN / PROD ----------
-      - name: Build & Push (prod)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:prod .
-          docker push $REGISTRY/$IMAGE_NAME:prod
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/ricash-org/notification-service:latest

@@ -7,6 +7,17 @@ import { publishNotification } from "../messaging/publisher";
 export class OtpService {
   private otpRepo = AppDataSource.getRepository(Otp);
 
+  private isDevBypassEnabled() {
+    const v = (process.env.OTP_DEV_BYPASS || "").trim().toLowerCase();
+    return v === "1" || v === "true" || v === "yes" || v === "y";
+  }
+
+  private devBypassCode() {
+    // OTP = 4 chiffres. Par défaut: 0000 (pour tests d'intégration sans SMS/Termii).
+    const code = (process.env.OTP_DEV_CODE || "0000").trim();
+    return code || "0000";
+  }
+
   private generateCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString(); // 4chiffres
   }
@@ -48,12 +59,20 @@ export class OtpService {
 
     // Publication d'un événement OTP sur l'exchange partagé (ex: ricash.events)
     // Routing key dédiée : otp.verification (captée via le binding "otp.*")
-    await publishNotification("otp.verification", message);
+    // En mode dev, on peut bypasser l'envoi (Termii indisponible / SenderID pending)
+    if (!this.isDevBypassEnabled()) {
+      await publishNotification("otp.verification", message);
+    }
 
     return { success: true, message: "OTP envoyé", expiration };
   }
 
   async verifyOtp(utilisateurId: string, code: string) {
+    // Mode dev: accepter un code fixe (par défaut 0000) sans dépendance SMS.
+    if (this.isDevBypassEnabled() && String(code || "").trim() === this.devBypassCode()) {
+      return { success: true, message: "OTP validé (dev bypass)" };
+    }
+
     const otp = await this.otpRepo.findOne({
       where: { utilisateurId, code },
     });

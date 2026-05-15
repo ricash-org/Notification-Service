@@ -53,8 +53,22 @@ export async function ensureChannel(): Promise<Channel> {
     // événements OTP (ex: "otp.verification")
     await ch.bindQueue(QUEUE, EXCHANGE, "otp.*");
 
+    // Nettoyage: un ancien binding trop large (payment.#) peut rester côté broker.
+    // On le retire best-effort pour éviter de consommer des payloads non compatibles.
+    try {
+      await ch.unbindQueue(QUEUE, EXCHANGE, "payment.#");
+    } catch {
+      // ignore
+    }
+
+    // événements du payment-service (format InterServices)
+    await ch.bindQueue(QUEUE, EXCHANGE, "payment.notify");
+
     // routing key interne historique du service de notifications
     await ch.bindQueue(QUEUE, EXCHANGE, RK_MAIN);
+
+    // SMS publiés par le partner-service (exchange partagé ricash.events)
+    await ch.bindQueue(QUEUE, EXCHANGE, "notification.sms.send");
 
     // Queue retry
     await ch.assertQueue(QUEUE_RETRY, {

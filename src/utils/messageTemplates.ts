@@ -254,6 +254,12 @@ export const generateMessage = (
         "Nouvelle annonce: consultez votre application pour plus de détails.",
       );
 
+    case TypeNotification.PAIEMENT_REUSSI:
+      return `Paiement effectué: ${context.montant} ${context.currency ?? "FCFA"}. Facture: ${context.referenceFacture ?? "N/A"}. Référence: ${context.transactionId}.`;
+
+    case TypeNotification.RECHARGE_MOBILE:
+      return `Recharge mobile de ${context.montant} ${context.currency ?? "FCFA"} pour le ${context.beneficiaire} confirmée. Référence: ${context.transactionId}.`;
+
     case TypeNotification.ALERT_SECURITE:
       return `Alerte sécurité : connexion suspecte depuis un nouvel appareil.`;
 
@@ -265,6 +271,13 @@ export const generateMessage = (
 
     case TypeNotification.VERIFICATION_TELEPHONE:
       return `Votre code OTP de vérification téléphone est: ${readCode(context)}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers.`;
+
+    case TypeNotification.ANNONCE:
+      return (
+        context?.body ??
+        context?.message ??
+        "Annonce Ricash"
+      );
 
     default:
       return `Vous avez reçu une nouvelle notification (${type}). Consultez votre application pour plus de détails.`;

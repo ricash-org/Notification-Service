@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import twilio from "twilio";
 import { AppDataSource } from "../data-source";
 import {
   CanalNotification,
@@ -13,10 +12,61 @@ import { userContactService } from "./userContactService";
 
 dotenv.config();
 
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN,
-);
+function normalizeTermiiPhone(input: string) {
+  // Termii attend un numéro au format international SANS "+" (ex: 23490126727)
+  const digits = (input || "").replace(/[^\d]/g, "");
+  return digits;
+}
+
+async function sendSmsViaTermii(to: string, sms: string) {
+  const baseUrl = (process.env.TERMII_BASE_URL || "https://api.ng.termii.com")
+    .trim()
+    .replace(/\/+$/, "");
+  const apiKey = (process.env.TERMII_API_KEY || "").trim();
+  const from = (process.env.TERMII_SENDER_ID || "").trim();
+  const channel = (process.env.TERMII_CHANNEL || "dnd").trim(); // dnd recommandé pour OTP/transactionnel
+  const type = (process.env.TERMII_TYPE || "plain").trim();
+
+  if (!apiKey) throw new Error("TERMII_API_KEY manquant.");
+  if (!from) throw new Error("TERMII_SENDER_ID manquant.");
+  if (!to) throw new Error("Numéro destinataire manquant.");
+
+  const payload = {
+    api_key: apiKey,
+    to: normalizeTermiiPhone(to),
+    from,
+    sms,
+    type,
+    channel,
+  };
+
+  const res = await fetch(`${baseUrl}/api/sms/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  let json: any = undefined;
+  try {
+    json = text ? JSON.parse(text) : undefined;
+  } catch {
+    // noop: certaines erreurs peuvent ne pas être en JSON
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Termii HTTP ${res.status}: ${json?.message || text || "Erreur inconnue"}`,
+    );
+  }
+
+  // Réponse attendue: { code: "ok", message_id: "...", message: "Successfully Sent", ... }
+  if (json && json.code && String(json.code).toLowerCase() !== "ok") {
+    throw new Error(`Termii error: ${json.message || JSON.stringify(json)}`);
+  }
+
+  return json;
+}
 
 export interface ContactInfoDTO {
   email: string;
@@ -64,7 +114,6 @@ export class NotificationService {
   //     if (notif.canal === "SMS") {
   //       await client.messages.create({
   //         body: notif.message,
-  //         from: process.env.TWILIO_PHONE_NUMBER,
   //         to: data.utilisateurId, // ⚠️ ici, utilisateurId = numéro tel pour simplifier
   //       });
   //     }
@@ -136,11 +185,7 @@ export class NotificationService {
     await this.notifRepo.save(notifSms);
 
     try {
-      await client.messages.create({
-        body: content,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: contact.phone,
-      });
+      await sendSmsViaTermii(contact.phone, content);
       notifSms.statut = StatutNotification.ENVOYEE;
     } catch (error) {
       notifSms.statut = StatutNotification.ECHEC;
@@ -200,11 +245,7 @@ export class NotificationService {
     await this.notifRepo.save(notifSms);
 
     try {
-      await client.messages.create({
-        body: content,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: contact.phone,
-      });
+      await sendSmsViaTermii(contact.phone, content);
       notifSms.statut = StatutNotification.ENVOYEE;
     } catch (error) {
       notifSms.statut = StatutNotification.ECHEC;
@@ -365,11 +406,7 @@ export class NotificationService {
         await this.notifRepo.save(smsNotif);
 
         try {
-          await client.messages.create({
-            body: message,
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: destinationPhone,
-          });
+          await sendSmsViaTermii(destinationPhone, message);
           smsNotif.statut = StatutNotification.ENVOYEE;
         } catch (error) {
           smsNotif.statut = StatutNotification.ECHEC;
@@ -436,11 +473,7 @@ export class NotificationService {
 
     try {
       if (notif.canal === CanalNotification.SMS && destinationPhone) {
-        await client.messages.create({
-          body: message,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: destinationPhone,
-        });
+        await sendSmsViaTermii(destinationPhone, message);
       }
 
       if (notif.canal === CanalNotification.EMAIL && destinationEmail) {

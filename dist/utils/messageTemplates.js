@@ -18,6 +18,8 @@ const generateMessage = (type, context) => {
             return `Votre retrait de ${context.montant} ${context.currency ?? "FCFA"} a été effectué avec succès. Nouveau solde: ${context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
         case Notification_1.TypeNotification.DEPOT_REUSSI:
             return `Vous avez reçu un dépôt de ${context.montant} ${context.currency ?? "FCFA"} sur votre compte. Nouveau solde: ${context.solde} ${context.currency ?? "FCFA"}. Référence: ${context.transactionId}.`;
+        case Notification_1.TypeNotification.PAIEMENT_REUSSI:
+            return `Paiement effectué: ${context.montant} ${context.currency ?? "FCFA"}. Facture: ${context.referenceFacture ?? "N/A"}. Référence: ${context.transactionId}.`;
         case Notification_1.TypeNotification.ALERT_SECURITE:
             return `Alerte sécurité : connexion suspecte depuis un nouvel appareil.`;
         case Notification_1.TypeNotification.VERIFICATION_KYC:
@@ -26,6 +28,10 @@ const generateMessage = (type, context) => {
             return `Votre code de vérification email est : ${context.code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers.`;
         case Notification_1.TypeNotification.VERIFICATION_TELEPHONE:
             return `Votre code OTP de vérification téléphone est : ${context.code}. Ce code est valable 5 minutes. Ne le partagez jamais avec un tiers.`;
+        case Notification_1.TypeNotification.ANNONCE:
+            return (context?.body ??
+                context?.message ??
+                "Annonce Ricash");
         default:
             return `Notification générique`;
     }

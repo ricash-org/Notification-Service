@@ -10,6 +10,15 @@ class OtpService {
         this.otpRepo = data_source_1.AppDataSource.getRepository(Otp_1.Otp);
         this.expirationDelay = 5 * 60 * 1000; // 5 minutes
     }
+    isDevBypassEnabled() {
+        const v = (process.env.OTP_DEV_BYPASS || "").trim().toLowerCase();
+        return v === "1" || v === "true" || v === "yes" || v === "y";
+    }
+    devBypassCode() {
+        // OTP = 4 chiffres. Par défaut: 0000 (pour tests d'intégration sans SMS/Termii).
+        const code = (process.env.OTP_DEV_CODE || "0000").trim();
+        return code || "0000";
+    }
     generateCode() {
         return Math.floor(1000 + Math.random() * 9000).toString(); // 4chiffres
     }
@@ -40,10 +49,17 @@ class OtpService {
         };
         // Publication d'un événement OTP sur l'exchange partagé (ex: ricash.events)
         // Routing key dédiée : otp.verification (captée via le binding "otp.*")
-        await (0, publisher_1.publishNotification)("otp.verification", message);
+        // En mode dev, on peut bypasser l'envoi (Termii indisponible / SenderID pending)
+        if (!this.isDevBypassEnabled()) {
+            await (0, publisher_1.publishNotification)("otp.verification", message);
+        }
         return { success: true, message: "OTP envoyé", expiration };
     }
     async verifyOtp(utilisateurId, code) {
+        // Mode dev: accepter un code fixe (par défaut 0000) sans dépendance SMS.
+        if (this.isDevBypassEnabled() && String(code || "").trim() === this.devBypassCode()) {
+            return { success: true, message: "OTP validé (dev bypass)" };
+        }
         const otp = await this.otpRepo.findOne({
             where: { utilisateurId, code },
         });

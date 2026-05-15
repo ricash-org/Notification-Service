@@ -18,7 +18,7 @@ Comportement cle actuel:
 - npm
 - PostgreSQL
 - RabbitMQ
-- Compte Twilio (SMS)
+- Compte Termii (SMS)
 - Compte SMTP/Gmail (email)
 
 ## Installation
@@ -52,11 +52,13 @@ npm run dev
 - RABBITMQ_EXCHANGE
 - RABBITMQ_QUEUE
 
-### SMS (Twilio)
+### SMS (Termii)
 
-- TWILIO_ACCOUNT_SID
-- TWILIO_AUTH_TOKEN
-- TWILIO_PHONE_NUMBER
+- TERMII_BASE_URL (ex: https://api.ng.termii.com)
+- TERMII_API_KEY
+- TERMII_SENDER_ID
+- TERMII_CHANNEL (dnd recommandé pour OTP/transactionnel)
+- TERMII_TYPE (plain)
 
 ### Email
 

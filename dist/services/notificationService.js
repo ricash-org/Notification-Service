@@ -5,14 +5,61 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationService = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
-const twilio_1 = __importDefault(require("twilio"));
 const data_source_1 = require("../data-source");
 const Notification_1 = require("../entities/Notification");
 const mailService_1 = require("../utils/mailService");
 const messageTemplates_1 = require("../utils/messageTemplates");
 const userContactService_1 = require("./userContactService");
 dotenv_1.default.config();
-const client = (0, twilio_1.default)(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+function normalizeTermiiPhone(input) {
+    // Termii attend un numéro au format international SANS "+" (ex: 23490126727)
+    const digits = (input || "").replace(/[^\d]/g, "");
+    return digits;
+}
+async function sendSmsViaTermii(to, sms) {
+    const baseUrl = (process.env.TERMII_BASE_URL || "https://api.ng.termii.com")
+        .trim()
+        .replace(/\/+$/, "");
+    const apiKey = (process.env.TERMII_API_KEY || "").trim();
+    const from = (process.env.TERMII_SENDER_ID || "").trim();
+    const channel = (process.env.TERMII_CHANNEL || "dnd").trim(); // dnd recommandé pour OTP/transactionnel
+    const type = (process.env.TERMII_TYPE || "plain").trim();
+    if (!apiKey)
+        throw new Error("TERMII_API_KEY manquant.");
+    if (!from)
+        throw new Error("TERMII_SENDER_ID manquant.");
+    if (!to)
+        throw new Error("Numéro destinataire manquant.");
+    const payload = {
+        api_key: apiKey,
+        to: normalizeTermiiPhone(to),
+        from,
+        sms,
+        type,
+        channel,
+    };
+    const res = await fetch(`${baseUrl}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    let json = undefined;
+    try {
+        json = text ? JSON.parse(text) : undefined;
+    }
+    catch {
+        // noop: certaines erreurs peuvent ne pas être en JSON
+    }
+    if (!res.ok) {
+        throw new Error(`Termii HTTP ${res.status}: ${json?.message || text || "Erreur inconnue"}`);
+    }
+    // Réponse attendue: { code: "ok", message_id: "...", message: "Successfully Sent", ... }
+    if (json && json.code && String(json.code).toLowerCase() !== "ok") {
+        throw new Error(`Termii error: ${json.message || JSON.stringify(json)}`);
+    }
+    return json;
+}
 class NotificationService {
     constructor() {
         this.notifRepo = data_source_1.AppDataSource.getRepository(Notification_1.Notification);
@@ -24,7 +71,6 @@ class NotificationService {
     //     if (notif.canal === "SMS") {
     //       await client.messages.create({
     //         body: notif.message,
-    //         from: process.env.TWILIO_PHONE_NUMBER,
     //         to: data.utilisateurId, // ⚠️ ici, utilisateurId = numéro tel pour simplifier
     //       });
     //     }
@@ -81,11 +127,7 @@ class NotificationService {
         });
         await this.notifRepo.save(notifSms);
         try {
-            await client.messages.create({
-                body: content,
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to: contact.phone,
-            });
+            await sendSmsViaTermii(contact.phone, content);
             notifSms.statut = Notification_1.StatutNotification.ENVOYEE;
         }
         catch (error) {
@@ -131,11 +173,7 @@ class NotificationService {
         });
         await this.notifRepo.save(notifSms);
         try {
-            await client.messages.create({
-                body: content,
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to: contact.phone,
-            });
+            await sendSmsViaTermii(contact.phone, content);
             notifSms.statut = Notification_1.StatutNotification.ENVOYEE;
         }
         catch (error) {
@@ -241,11 +279,7 @@ class NotificationService {
                 });
                 await this.notifRepo.save(smsNotif);
                 try {
-                    await client.messages.create({
-                        body: message,
-                        from: process.env.TWILIO_PHONE_NUMBER,
-                        to: destinationPhone,
-                    });
+                    await sendSmsViaTermii(destinationPhone, message);
                     smsNotif.statut = Notification_1.StatutNotification.ENVOYEE;
                 }
                 catch (error) {
@@ -300,11 +334,7 @@ class NotificationService {
         await this.notifRepo.save(notif);
         try {
             if (notif.canal === Notification_1.CanalNotification.SMS && destinationPhone) {
-                await client.messages.create({
-                    body: message,
-                    from: process.env.TWILIO_PHONE_NUMBER,
-                    to: destinationPhone,
-                });
+                await sendSmsViaTermii(destinationPhone, message);
             }
             if (notif.canal === Notification_1.CanalNotification.EMAIL && destinationEmail) {
                 await (0, mailService_1.sendEmail)(destinationEmail, "RICASH NOTIFICATION", message);

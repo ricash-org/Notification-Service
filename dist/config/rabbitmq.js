@@ -77,8 +77,20 @@ async function ensureChannel() {
         await ch.bindQueue(exports.QUEUE, exports.EXCHANGE, "wallet.transfer.*");
         // événements OTP (ex: "otp.verification")
         await ch.bindQueue(exports.QUEUE, exports.EXCHANGE, "otp.*");
+        // Nettoyage: un ancien binding trop large (payment.#) peut rester côté broker.
+        // On le retire best-effort pour éviter de consommer des payloads non compatibles.
+        try {
+            await ch.unbindQueue(exports.QUEUE, exports.EXCHANGE, "payment.#");
+        }
+        catch {
+            // ignore
+        }
+        // événements du payment-service (format InterServices)
+        await ch.bindQueue(exports.QUEUE, exports.EXCHANGE, "payment.notify");
         // routing key interne historique du service de notifications
         await ch.bindQueue(exports.QUEUE, exports.EXCHANGE, exports.RK_MAIN);
+        // SMS publiés par le partner-service (exchange partagé ricash.events)
+        await ch.bindQueue(exports.QUEUE, exports.EXCHANGE, "notification.sms.send");
         // Queue retry
         await ch.assertQueue(exports.QUEUE_RETRY, {
             durable: true,

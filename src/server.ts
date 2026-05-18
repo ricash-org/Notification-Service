@@ -3,13 +3,18 @@ import express from "express";
 import "reflect-metadata";
 import app from "./app";
 import { ensureChannel } from "./config/rabbitmq";
+import { describeDatabaseTarget } from "./config/database";
 import { AppDataSource } from "./data-source";
 import { startExternalNotificationConsumer } from "./messaging/externalConsumer";
 import healthRoute from "./routes/health";
 
 dotenv.config();
 
-const PORT = process.env.SERVICE_PORT ? Number(process.env.SERVICE_PORT) : 8000;
+const PORT = Number(
+  process.env.SERVICE_PORT || process.env.PORT || "8005",
+);
+const DB_INIT_RETRIES = Number(process.env.DB_INIT_RETRIES || "30");
+const DB_INIT_DELAY_MS = Number(process.env.DB_INIT_DELAY_MS || "5000");
 
 async function initRabbitWithRetry(delayMs = 3000): Promise<void> {
   let attempt = 1;
@@ -43,34 +48,42 @@ async function initRabbitWithRetry(delayMs = 3000): Promise<void> {
 app.use(express.json());
 app.use("/", healthRoute);
 
-AppDataSource.initialize()
-  .then(async () => {
-    console.log("Connexion à la base PostgreSQL réussie");
+async function initDatabase(): Promise<void> {
+  console.log(`Cible PostgreSQL: ${describeDatabaseTarget()}`);
 
-    app.listen(PORT, () => {
-      console.log(`Serveur démarré sur le port ${PORT}`);
-    });
+  for (let attempt = 1; attempt <= DB_INIT_RETRIES; attempt += 1) {
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+      console.log("Connexion à la base PostgreSQL réussie");
+      return;
+    } catch (err) {
+      console.error(
+        `Échec connexion PostgreSQL (tentative ${attempt}/${DB_INIT_RETRIES}) :`,
+        err,
+      );
+      if (attempt >= DB_INIT_RETRIES) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, DB_INIT_DELAY_MS));
+    }
+  }
+}
 
-    // Initialisation RabbitMQ en arrière-plan avec retry infini
-    void initRabbitWithRetry();
-  })
-  .catch((err) => console.error("Erreur de connexion :", err));
-/*
-async function startServer() {
-  console.log("⏳ Initialisation du service de notifications...");
-
+async function startServer(): Promise<void> {
   try {
-    await AppDataSource.initialize();
-    console.log("Connexion PostgreSQL réussie.");
+    await initDatabase();
 
     app.listen(PORT, () => {
       console.log(`Notification-Service démarré sur le port ${PORT}`);
     });
-  } catch (error) {
-    console.error("Erreur lors de la connexion PostgreSQL :", error);
-    console.log("Nouvelle tentative dans 5 secondes...");
-    setTimeout(startServer, 5000);
+
+    void initRabbitWithRetry();
+  } catch (err) {
+    console.error("Arrêt du service: impossible de se connecter à PostgreSQL", err);
+    process.exit(1);
   }
 }
 
-startServer();*/
+void startServer();

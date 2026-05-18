@@ -96,8 +96,8 @@ export enum StatutNotification {
   ECHEC = "ECHEC",
 }
 
-@Entity()
-export class Notification {
+@Entity({ name: "notification" })
+export class RicashNotification {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { AppDataSource } from "../data-source";
 import {
   CanalNotification,
-  Notification,
+  RicashNotification,
   StatutNotification,
   TypeNotification,
 } from "../entities/Notification";
@@ -104,9 +104,9 @@ export type HttpNotificationDTO =
   | SimpleNotificationDTO;
 
 export class NotificationService {
-  private notifRepo = AppDataSource.getRepository(Notification);
+  private notifRepo = AppDataSource.getRepository(RicashNotification);
 
-  // async envoyerNotification(data: Partial<Notification>) {
+  // async envoyerNotification(data: Partial<RicashNotification>) {
   //   const notif = this.notifRepo.create({ ...data, statut: StatutNotification.EN_COURS });
   //   await this.notifRepo.save(notif);
 
@@ -254,7 +254,7 @@ export class NotificationService {
 
     await this.notifRepo.save(notifSms);
 
-    let notifEmail: Notification | undefined;
+    let notifEmail: RicashNotification | undefined;
     if (contact.email) {
       notifEmail = this.notifRepo.create({
         utilisateurId: contact.email,
@@ -389,24 +389,27 @@ export class NotificationService {
     // Priorité SMS pour les alertes sécurité: SMS d'abord si numéro disponible,
     // puis email en second canal si disponible.
     if (data.typeNotification === TypeNotification.ALERT_SECURITE) {
-      const context = data.context;
-      let smsNotif: Notification | undefined;
-      let emailNotif: Notification | undefined;
+      const notificationContext = data.context as
+        | Record<string, unknown>
+        | undefined;
+      let smsNotif: RicashNotification | undefined;
+      let emailNotif: RicashNotification | undefined;
 
       if (destinationPhone) {
+        const phone = destinationPhone;
         smsNotif = this.notifRepo.create({
           utilisateurId: data.utilisateurId,
           typeNotification: data.typeNotification,
           canal: CanalNotification.SMS,
-          context,
+          context: notificationContext,
           message,
-          destinationPhone,
+          destinationPhone: phone,
           statut: StatutNotification.EN_COURS,
         });
         await this.notifRepo.save(smsNotif);
 
         try {
-          await sendSmsViaTermii(destinationPhone, message);
+          await sendSmsViaTermii(phone, message);
           smsNotif.statut = StatutNotification.ENVOYEE;
         } catch (error) {
           smsNotif.statut = StatutNotification.ECHEC;
@@ -417,19 +420,20 @@ export class NotificationService {
       }
 
       if (destinationEmail) {
+        const email = destinationEmail;
         emailNotif = this.notifRepo.create({
           utilisateurId: data.utilisateurId,
           typeNotification: data.typeNotification,
           canal: CanalNotification.EMAIL,
-          context,
+          context: notificationContext,
           message,
-          destinationEmail,
+          destinationEmail: email,
           statut: StatutNotification.EN_COURS,
         });
         await this.notifRepo.save(emailNotif);
 
         try {
-          await sendEmail(destinationEmail, "RICASH NOTIFICATION", message);
+          await sendEmail(email, "RICASH NOTIFICATION", message);
           emailNotif.statut = StatutNotification.ENVOYEE;
         } catch (error) {
           emailNotif.statut = StatutNotification.ECHEC;
@@ -473,11 +477,13 @@ export class NotificationService {
 
     try {
       if (notif.canal === CanalNotification.SMS && destinationPhone) {
-        await sendSmsViaTermii(destinationPhone, message);
+        const phone = destinationPhone;
+        await sendSmsViaTermii(phone, message);
       }
 
       if (notif.canal === CanalNotification.EMAIL && destinationEmail) {
-        await sendEmail(destinationEmail, "RICASH NOTIFICATION", message);
+        const email = destinationEmail;
+        await sendEmail(email, "RICASH NOTIFICATION", message);
       }
 
       notif.statut = StatutNotification.ENVOYEE;

@@ -62,9 +62,9 @@ async function sendSmsViaTermii(to, sms) {
 }
 class NotificationService {
     constructor() {
-        this.notifRepo = data_source_1.AppDataSource.getRepository(Notification_1.Notification);
+        this.notifRepo = data_source_1.AppDataSource.getRepository(Notification_1.RicashNotification);
     }
-    // async envoyerNotification(data: Partial<Notification>) {
+    // async envoyerNotification(data: Partial<RicashNotification>) {
     //   const notif = this.notifRepo.create({ ...data, statut: StatutNotification.EN_COURS });
     //   await this.notifRepo.save(notif);
     //   try {
@@ -264,22 +264,23 @@ class NotificationService {
         // Priorité SMS pour les alertes sécurité: SMS d'abord si numéro disponible,
         // puis email en second canal si disponible.
         if (data.typeNotification === Notification_1.TypeNotification.ALERT_SECURITE) {
-            const context = data.context;
+            const notificationContext = data.context;
             let smsNotif;
             let emailNotif;
             if (destinationPhone) {
+                const phone = destinationPhone;
                 smsNotif = this.notifRepo.create({
                     utilisateurId: data.utilisateurId,
                     typeNotification: data.typeNotification,
                     canal: Notification_1.CanalNotification.SMS,
-                    context,
+                    context: notificationContext,
                     message,
-                    destinationPhone,
+                    destinationPhone: phone,
                     statut: Notification_1.StatutNotification.EN_COURS,
                 });
                 await this.notifRepo.save(smsNotif);
                 try {
-                    await sendSmsViaTermii(destinationPhone, message);
+                    await sendSmsViaTermii(phone, message);
                     smsNotif.statut = Notification_1.StatutNotification.ENVOYEE;
                 }
                 catch (error) {
@@ -289,18 +290,19 @@ class NotificationService {
                 await this.notifRepo.save(smsNotif);
             }
             if (destinationEmail) {
+                const email = destinationEmail;
                 emailNotif = this.notifRepo.create({
                     utilisateurId: data.utilisateurId,
                     typeNotification: data.typeNotification,
                     canal: Notification_1.CanalNotification.EMAIL,
-                    context,
+                    context: notificationContext,
                     message,
-                    destinationEmail,
+                    destinationEmail: email,
                     statut: Notification_1.StatutNotification.EN_COURS,
                 });
                 await this.notifRepo.save(emailNotif);
                 try {
-                    await (0, mailService_1.sendEmail)(destinationEmail, "RICASH NOTIFICATION", message);
+                    await (0, mailService_1.sendEmail)(email, "RICASH NOTIFICATION", message);
                     emailNotif.statut = Notification_1.StatutNotification.ENVOYEE;
                 }
                 catch (error) {
@@ -334,10 +336,12 @@ class NotificationService {
         await this.notifRepo.save(notif);
         try {
             if (notif.canal === Notification_1.CanalNotification.SMS && destinationPhone) {
-                await sendSmsViaTermii(destinationPhone, message);
+                const phone = destinationPhone;
+                await sendSmsViaTermii(phone, message);
             }
             if (notif.canal === Notification_1.CanalNotification.EMAIL && destinationEmail) {
-                await (0, mailService_1.sendEmail)(destinationEmail, "RICASH NOTIFICATION", message);
+                const email = destinationEmail;
+                await (0, mailService_1.sendEmail)(email, "RICASH NOTIFICATION", message);
             }
             notif.statut = Notification_1.StatutNotification.ENVOYEE;
             await this.notifRepo.save(notif);

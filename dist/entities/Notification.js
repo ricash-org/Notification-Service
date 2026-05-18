@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Notification = exports.StatutNotification = exports.CanalNotification = exports.TypeNotification = void 0;
+exports.RicashNotification = exports.StatutNotification = exports.CanalNotification = exports.TypeNotification = void 0;
 const typeorm_1 = require("typeorm");
 var TypeNotification;
 (function (TypeNotification) {
@@ -65,6 +65,7 @@ var TypeNotification;
     // 8. PAYMENT
     TypeNotification["PAIEMENT_REUSSI"] = "PAIEMENT_REUSSI";
     TypeNotification["PAIEMENT_ECHOUE"] = "PAIEMENT_ECHOUE";
+    TypeNotification["RECHARGE_MOBILE"] = "RECHARGE_MOBILE";
     TypeNotification["FACTURE_GENEREE"] = "FACTURE_GENEREE";
     TypeNotification["FACTURE_PAYEE"] = "FACTURE_PAYEE";
     // 9. FRAUD AND ALERTS
@@ -91,37 +92,37 @@ var StatutNotification;
     StatutNotification["LUE"] = "LUE";
     StatutNotification["ECHEC"] = "ECHEC";
 })(StatutNotification || (exports.StatutNotification = StatutNotification = {}));
-let Notification = class Notification {
+let RicashNotification = class RicashNotification {
 };
-exports.Notification = Notification;
+exports.RicashNotification = RicashNotification;
 __decorate([
     (0, typeorm_1.PrimaryGeneratedColumn)("uuid"),
     __metadata("design:type", String)
-], Notification.prototype, "id", void 0);
+], RicashNotification.prototype, "id", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", String)
-], Notification.prototype, "utilisateurId", void 0);
+], RicashNotification.prototype, "utilisateurId", void 0);
 __decorate([
     (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", String)
-], Notification.prototype, "destinationEmail", void 0);
+], RicashNotification.prototype, "destinationEmail", void 0);
 __decorate([
     (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", String)
-], Notification.prototype, "destinationPhone", void 0);
+], RicashNotification.prototype, "destinationPhone", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: "enum", enum: TypeNotification }),
     __metadata("design:type", String)
-], Notification.prototype, "typeNotification", void 0);
+], RicashNotification.prototype, "typeNotification", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", String)
-], Notification.prototype, "message", void 0);
+], RicashNotification.prototype, "message", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: "enum", enum: CanalNotification }),
     __metadata("design:type", String)
-], Notification.prototype, "canal", void 0);
+], RicashNotification.prototype, "canal", void 0);
 __decorate([
     (0, typeorm_1.Column)({
         type: "enum",
@@ -129,15 +130,15 @@ __decorate([
         default: StatutNotification.CREE,
     }),
     __metadata("design:type", String)
-], Notification.prototype, "statut", void 0);
+], RicashNotification.prototype, "statut", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
-], Notification.prototype, "dateEnvoi", void 0);
+], RicashNotification.prototype, "dateEnvoi", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: "simple-json", nullable: true }),
     __metadata("design:type", Object)
-], Notification.prototype, "context", void 0);
-exports.Notification = Notification = __decorate([
-    (0, typeorm_1.Entity)()
-], Notification);
+], RicashNotification.prototype, "context", void 0);
+exports.RicashNotification = RicashNotification = __decorate([
+    (0, typeorm_1.Entity)({ name: "notification" })
+], RicashNotification);

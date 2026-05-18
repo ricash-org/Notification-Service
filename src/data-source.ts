@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { DataSource } from "typeorm";
-import { Notification } from "./entities/Notification";
+import { RicashNotification } from "./entities/Notification";
 import dotenv from "dotenv";
 import { Otp } from "./entities/Otp";
 
@@ -13,7 +13,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [Notification,Otp],
+  entities: [RicashNotification, Otp],
   synchronize: true, // auto-crée les tables
   logging: true,
 });

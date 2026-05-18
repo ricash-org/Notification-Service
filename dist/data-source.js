@@ -17,7 +17,7 @@ exports.AppDataSource = new typeorm_1.DataSource({
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    entities: [Notification_1.Notification, Otp_1.Otp],
+    entities: [Notification_1.RicashNotification, Otp_1.Otp],
     synchronize: true, // auto-crée les tables
     logging: true,
 });
